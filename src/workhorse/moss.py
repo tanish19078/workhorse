@@ -111,8 +111,10 @@ class IndexParser(HTMLParser):
 
     def handle_starttag(self, tag, attrs):
         if tag == "tr":
+            self.end_row()
             self.row = []
         elif tag == "td" and self.row is not None:
+            self.end_cell()
             self.cell = {"text": "", "links": []}
         elif tag == "a" and self.cell is not None:
             self.link = dict(attrs).get("href", "")
@@ -123,13 +125,22 @@ class IndexParser(HTMLParser):
         if self.cell is not None:
             self.cell["text"] += data
 
-    def handle_endtag(self, tag):
-        if tag == "td" and self.cell is not None:
+    def end_cell(self):
+        if self.cell is not None and self.row is not None:
             self.row.append(self.cell)
             self.cell = None
-        elif tag == "tr" and self.row is not None:
+
+    def end_row(self):
+        self.end_cell()
+        if self.row is not None:
             self.rows.append(self.row)
             self.row = None
+
+    def handle_endtag(self, tag):
+        if tag == "td":
+            self.end_cell()
+        elif tag in ("tr", "table"):
+            self.end_row()
 
 
 def import_index(plan_path, group_id, html_path, url):
