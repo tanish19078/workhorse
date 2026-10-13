@@ -41,6 +41,8 @@ def evaluate(path: Path, options: Options = Options()) -> dict:
             counts = {"true_positive": 0, "false_positive": 0, "true_negative": 0,
                       "false_negative": 0, "insufficient_cases": 0, "insufficient_flagged": 0}
             counts.update(ambiguous_cases=0, ambiguous_flagged=0)
+            retrieval_counts = {"true_positive": 0, "false_positive": 0, "true_negative": 0,
+                                "false_negative": 0, "ambiguous_retrieved": 0, "insufficient_retrieved": 0}
             details = []
             for case in cases:
                 if case["split"] != split:
@@ -50,21 +52,33 @@ def evaluate(path: Path, options: Options = Options()) -> dict:
                 baseline = [Submission("base", "base", case["task"], case["language"], "base", case["baseline"])] if case.get("baseline") else []
                 report = compare(submissions, replace(options, normalization=normalization), baseline)
                 flagged = bool(report["findings"])
+                retrieved = flagged or bool(report.get("additional_candidates"))
                 label = case["label"]
                 if label == "insufficient":
                     counts["insufficient_cases"] += 1
                     counts["insufficient_flagged"] += flagged
+                    retrieval_counts["insufficient_retrieved"] += retrieved
                 elif label == "ambiguous":
                     counts["ambiguous_cases"] += 1
                     counts["ambiguous_flagged"] += flagged
+                    retrieval_counts["ambiguous_retrieved"] += retrieved
                 else:
                     key = ("true_positive" if flagged else "false_negative") if label == "shared_origin" else ("false_positive" if flagged else "true_negative")
                     counts[key] += 1
+                    retrieval_key = ("true_positive" if retrieved else "false_negative") if label == "shared_origin" else ("false_positive" if retrieved else "true_negative")
+                    retrieval_counts[retrieval_key] += 1
                 details.append({"id": case["id"], "label": label, "flagged": flagged,
+                                "retrieved": retrieved,
+                                "retrieval_category": "review_flag" if flagged else "broad_candidate" if retrieved else "none",
                                 "provenance": case["provenance"],
                                 "containment": report["findings"][0]["containment"] if flagged else None})
             tp, fp, tn, fn = [counts[k] for k in ("true_positive", "false_positive", "true_negative", "false_negative")]
+            rtp, rfp, rtn, rfn = [retrieval_counts[k] for k in ("true_positive", "false_positive", "true_negative", "false_negative")]
             results.append({"normalization": normalization, "split": split, "counts": counts,
+                            "retrieval_counts": retrieval_counts,
+                            "retrieval_precision": rtp / (rtp + rfp) if rtp + rfp else None,
+                            "retrieval_recall": rtp / (rtp + rfn) if rtp + rfn else None,
+                            "retrieval_false_positive_rate": rfp / (rfp + rtn) if rfp + rtn else None,
                             "precision": tp / (tp + fp) if tp + fp else None,
                             "recall": tp / (tp + fn) if tp + fn else None,
                             "false_positive_rate": fp / (fp + tn) if fp + tn else None,
@@ -72,4 +86,5 @@ def evaluate(path: Path, options: Options = Options()) -> dict:
     return {"schema_version": 1, "options": options.__dict__, "results": results,
             "interpretation": "Labels describe known construction provenance, not disciplinary findings. "
                               "Synthetic results do not estimate real-world accuracy. Null metrics have no denominator. "
+                              "The published fixtures have been inspected and are regression diagnostics, not a fresh blind holdout. "
                               "Do not tune on the holdout split; use separate real problem datasets before calibration."}

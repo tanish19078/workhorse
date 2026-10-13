@@ -40,6 +40,8 @@ def main(argv=None):
     review.add_argument("--baseline", type=Path, help="Manifest of known allowed templates")
     review.add_argument("--threshold", type=float, default=0.5, help="Minimum containment (default: 0.5)")
     review.add_argument("--normalization", choices=("relationships", "raw", "legacy"), default="relationships")
+    review.add_argument("--no-broad-retrieval", dest="broad_retrieval", action="store_false",
+                        help="Disable the separate flattened-identifier candidate pass")
     review.add_argument("--min-tokens", type=int, default=30)
     review.add_argument("--min-shared", type=int, default=3)
     review.add_argument("--k", type=int, default=9, help="Tokens per shingle")
@@ -89,7 +91,7 @@ def main(argv=None):
         if args.command == "review-list":
             for key, item in load_reviews(args.workspace)["pairs"].items():
                 if args.status is None or item["status"] == args.status:
-                    print(f"{key}\t{item['status']}\t{item['left']} ↔ {item['right']}")
+                    print(f"{key}\t{item['status']}\t{item.get('category', 'review_flag')}\t{item['left']} ↔ {item['right']}")
             return 0
         if args.command == "review-note":
             record_review(args.workspace, args.pair, args.status, args.note, args.reviewer,
@@ -118,6 +120,7 @@ def main(argv=None):
         report = compare(submissions, options, baselines)
         write_reports(report, args.output, args.force)
         print(f"Reviewed {len(submissions)} submissions; {report['summary']['flagged_pairs']} pairs met review thresholds.")
+        print(f"Additional broad-only leads: {report['summary']['additional_candidates']}")
         print(f"Reports: {args.output / 'report.html'} and {args.output / 'report.json'}")
         print(report["interpretation"])
         return 0

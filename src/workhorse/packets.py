@@ -20,7 +20,8 @@ def export_packet(report_path: Path, workspace_path: Path, keys: list[str], outp
     report = load_report(report_path)
     reviews = load_reviews(workspace_path)
     submissions = {item["id"]: item for item in report["submissions"]}
-    findings = {pair_key(submissions[f["left"]], submissions[f["right"]]): f for f in report["findings"]}
+    findings = {pair_key(submissions[f["left"]], submissions[f["right"]]): f
+                for f in report["findings"] + report.get("additional_candidates", [])}
     selected = []
     notes = {}
     for key in keys:
@@ -36,9 +37,12 @@ def export_packet(report_path: Path, workspace_path: Path, keys: list[str], outp
         selected.append(finding)
         notes[key] = item
     ids = {f[side] for f in selected for side in ("left", "right")}
+    selected_flags = [f for f in selected if f.get("category", "review_flag") == "review_flag"]
+    selected_broad = [f for f in selected if f.get("category") == "broad_candidate"]
     packet_report = {**report, "submissions": [s for s in report["submissions"] if s["id"] in ids],
-                     "findings": selected,
-                     "summary": {**report["summary"], "submissions": len(ids), "flagged_pairs": len(selected)},
+                     "findings": selected_flags, "additional_candidates": selected_broad,
+                     "summary": {**report["summary"], "submissions": len(ids), "flagged_pairs": len(selected_flags),
+                                 "additional_candidates": len(selected_broad)},
                      "packet_scope": "Selected reviewed pairs only. Group diagnostics refer to the original full run."}
     metadata = {"schema_version": 1, "exporter_version": __version__,
                 "created_at": datetime.now(timezone.utc).isoformat(),

@@ -1,7 +1,7 @@
 """Indexed candidate discovery with transparent similarity and matched spans."""
 
 from collections import defaultdict
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 import hashlib
 import math
 import platform
@@ -23,6 +23,7 @@ class Options:
     max_posting: int = 500
     corpus_filter: bool = True
     normalization: str = "relationships"
+    broad_retrieval: bool = True
 
     def validate(self):
         if self.normalization not in ("relationships", "raw", "legacy"):
@@ -72,25 +73,31 @@ def _evidence(a, b, ta, tb, fa, fb, shared, k):
     return spans
 
 
-def compare(submissions: list[Submission], options: Options = Options(),
+def _compare_once(submissions: list[Submission], options: Options = Options(),
             baselines: list[Submission] | None = None) -> dict:
     options.validate()
     groups = defaultdict(list)
     token_lists = []
     all_fingerprints = []
     raw_fingerprints = []
+    declined = {}
     for index, item in enumerate(submissions):
         try:
             tokens = normalize(item.source, item.language, options.normalization)
         except ValueError as exc:
-            raise ValueError(f"Submission {item.id}: {exc}") from exc
+            tokens = []
+            declined[index] = str(exc)
         token_lists.append(tokens)
         all_fingerprints.append(fingerprints(tokens, options.k, options.window))
-        raw_fingerprints.append(set(fingerprints(normalize(item.source, item.language, "raw"), options.k, options.window)))
+        try:
+            raw_tokens = normalize(item.source, item.language, "raw")
+        except ValueError:
+            raw_tokens = []
+        raw_fingerprints.append(set(fingerprints(raw_tokens, options.k, options.window)))
         groups[(item.task, item.language)].append(index)
     baseline_hashes = defaultdict(set)
     for item in baselines or []:
-        baseline_hashes[item.language].update(fingerprints(
+        baseline_hashes[(item.task, item.language)].update(fingerprints(
             normalize(item.source, item.language, options.normalization), options.k, options.window))
     findings = []
     diagnostics = []
@@ -101,7 +108,7 @@ def compare(submissions: list[Submission], options: Options = Options(),
         for i in eligible:
             for fingerprint in all_fingerprints[i]:
                 posting[fingerprint].append(i)
-        common = set(baseline_hashes[language])
+        common = set(baseline_hashes[(task, language)]) | set(baseline_hashes[("*", language)])
         # Count independent authors, not multiple revisions of one author's template.
         authors = {submissions[i].author for i in eligible}
         if options.corpus_filter and len(authors) >= 5:
@@ -158,7 +165,9 @@ def compare(submissions: list[Submission], options: Options = Options(),
                                          "longest_representative_span": max((s["tokens"] for s in spans), default=0)},
                              "cautions": cautions, "evidence": spans})
         diagnostics.append({"task": task, "language": language, "submissions": len(indexes),
-                            "eligible": len(eligible), "short_sources": len(indexes) - len(eligible),
+                            "eligible": len(eligible),
+                            "short_sources": sum(i not in declined and i not in eligible for i in indexes),
+                            "declined_sources": sum(i in declined for i in indexes),
                             "excluded_common_fingerprints": len(set(posting) & common),
                             "excluded_crowded_fingerprints": len(crowded),
                             "candidate_pairs": len(counts)})
@@ -166,7 +175,9 @@ def compare(submissions: list[Submission], options: Options = Options(),
     metadata = []
     for index, item in enumerate(submissions):
         metadata.append({**item.metadata(), "sha256": hashlib.sha256(item.source.encode()).hexdigest(),
-                         "normalized_tokens": len(token_lists[index])})
+                         "normalized_tokens": len(token_lists[index]),
+                         "analysis_status": "declined" if index in declined else "analyzed",
+                         "analysis_note": declined.get(index, "")})
     return {"schema_version": 1, "tool_version": __version__, "python_version": platform.python_version(), "options": options.__dict__, "submissions": metadata,
             "summary": {"submissions": len(submissions), "groups": len(groups),
                         "candidate_pairs": candidates_total, "flagged_pairs": len(findings)},
@@ -174,3 +185,39 @@ def compare(submissions: list[Submission], options: Options = Options(),
             "interpretation": "Similarity is a review signal, not a plagiarism probability or finding. "
                               "No flags does not establish independent authorship. "
                               "Evidence spans are representative, not a complete alignment."}
+
+
+def compare(submissions: list[Submission], options: Options = Options(),
+            baselines: list[Submission] | None = None) -> dict:
+    """Separate broad retrieval leads from flags supported by the selected mode."""
+    report = _compare_once(submissions, options, baselines)
+    report["additional_candidates"] = []
+    report["retrieval_groups"] = []
+    report["summary"].update(additional_candidates=0, broad_candidate_pairs=0)
+    for finding in report["findings"]:
+        finding["category"] = "review_flag"
+        finding["evidence_normalization"] = options.normalization
+    if not options.broad_retrieval or options.normalization != "relationships":
+        return report
+    remaining = options.max_candidates - report["summary"]["candidate_pairs"]
+    if remaining < 1:
+        raise ValueError("Combined candidate budget exhausted before broad retrieval; increase --max-candidates")
+    broad = _compare_once(submissions, replace(options, normalization="legacy",
+                                               broad_retrieval=False, max_candidates=remaining), baselines)
+    flagged = {frozenset((f["left"], f["right"])) for f in report["findings"]}
+    additional = []
+    for finding in broad["findings"]:
+        if frozenset((finding["left"], finding["right"])) in flagged:
+            continue
+        finding["category"] = "broad_candidate"
+        finding["evidence_normalization"] = "legacy"
+        finding["cautions"].insert(0, "Broad retrieval only: this pair did not meet the selected binding-aware criteria. "
+                                   "Its score and excerpts use flattened identifiers; inspect variable relationships and parser diagnostics.")
+        additional.append(finding)
+    report["additional_candidates"] = additional
+    report["retrieval_groups"] = broad["groups"]
+    report["summary"].update(additional_candidates=len(additional),
+                              broad_candidate_pairs=broad["summary"]["candidate_pairs"])
+    report["interpretation"] += " Broad-only candidates are separate leads, not additional review flags. "
+    report["interpretation"] += "Declined analyses must be checked manually; absence of flags is not a complete assessment."
+    return report

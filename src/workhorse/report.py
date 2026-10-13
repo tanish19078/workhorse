@@ -20,7 +20,7 @@ def _link(item):
 def render_html(report: dict) -> str:
     items = {s["id"]: s for s in report["submissions"]}
     cards = []
-    for finding in report["findings"]:
+    for finding in report["findings"] + report.get("additional_candidates", []):
         left, right = items[finding["left"]], items[finding["right"]]
         evidence = []
         for span in finding["evidence"]:
@@ -47,6 +47,7 @@ def render_html(report: dict) -> str:
         cautions = "".join(f'<li>{escape(note)}</li>' for note in finding.get("cautions", []))
         cards.append(f'''<article data-search="{search}">
 <h2>{_link(left)} ↔ {_link(right)}</h2>
+<p><strong>{'Broad candidate — not a review flag' if finding.get('category') == 'broad_candidate' else 'Review flag'}</strong> · Evidence normalization: {escape(finding.get('evidence_normalization', report['options'].get('normalization', 'legacy')))}</p>
 <p>{escape(left['author'])} ↔ {escape(right['author'])} · {escape(finding['task'])} · {escape(finding['language'])}</p>
 <p class="metrics">Containment {finding['containment']:.1%} · Jaccard {finding['jaccard']:.1%} · {finding['shared_fingerprints']} shared fingerprints</p>
 {diagnostics}<ul>{cautions}</ul>
@@ -67,10 +68,11 @@ def render_html(report: dict) -> str:
 <style>body{{font:16px/1.6 system-ui,sans-serif;background:#f5f6fa;color:#182235;margin:0}}main{{max-width:1100px;margin:40px auto;padding:0 24px}}h1{{font-size:38px;margin-bottom:0}}h2{{font-size:21px}}a{{color:#285ca6}}.notice{{padding:18px;background:#fff1cf;border-left:4px solid #a77816}}.stats{{display:flex;gap:24px;flex-wrap:wrap;margin:24px 0}}.stats strong{{font-size:28px;display:block}}article{{background:white;border:1px solid #dae0ea;border-radius:12px;padding:24px;margin:22px 0}}input{{width:100%;box-sizing:border-box;font:inherit;padding:12px;border:1px solid #a8b4c4;border-radius:8px}}.columns{{display:grid;grid-template-columns:1fr 1fr;gap:16px}}.columns>div{{min-width:0}}pre{{font:13px/1.5 ui-monospace,monospace;white-space:pre-wrap;overflow-wrap:anywhere;background:#eef1f7;padding:16px;border-radius:8px}}summary{{cursor:pointer;font-weight:600}}.muted{{color:#596579}}table{{width:100%;border-collapse:collapse;font-size:14px}}th,td{{text-align:left;border-bottom:1px solid #cdd6e4;padding:10px}}.tablewrap{{overflow:auto}}[hidden]{{display:none}}@media(max-width:700px){{.columns{{grid-template-columns:1fr}}main{{padding:0 14px}}}}@media print{{input,label{{display:none}}article{{break-inside:avoid}}body{{background:white}}}}</style></head><body><main>
 <p class="muted">WORKHORSE / LOCAL REVIEW</p><h1>Source similarity review</h1>
 <p class="notice">{escape(report['interpretation'])}</p>
-<div class="stats"><div><strong>{summary['submissions']}</strong>submissions</div><div><strong>{summary['groups']}</strong>task/language groups</div><div><strong>{summary['candidate_pairs']}</strong>candidate pairs</div><div><strong>{summary['flagged_pairs']}</strong>pairs to review</div></div>
+<div class="stats"><div><strong>{summary['submissions']}</strong>submissions</div><div><strong>{summary['groups']}</strong>task/language groups</div><div><strong>{summary['flagged_pairs']}</strong>review flags</div><div><strong>{summary.get('additional_candidates', 0)}</strong>broad-only leads</div></div>
 <label for="search">Filter by submission, author, or task</label><input id="search" type="search" placeholder="Search this report" autocomplete="off">
 <p id="visible" aria-live="polite"></p>{content}
 <h2>Coverage and exclusions</h2><div class="tablewrap"><table><thead><tr><th>Task</th><th>Language</th><th>Sources</th><th>Short sources</th><th>Common hashes</th><th>Crowded hashes</th><th>Candidates</th></tr></thead><tbody>{''.join(rows)}</tbody></table></div>
+<h2>Declined analyses</h2><ul>{''.join('<li>' + escape(s['id'] + ': ' + s.get('analysis_note', '')) + '</li>' for s in report['submissions'] if s.get('analysis_status') == 'declined')}</ul>
 <details><summary>Reproducible settings</summary><pre>{settings}</pre></details>
 <p class="muted">Scores measure distinct retained token fingerprints. Containment divides by the smaller set; Jaccard divides by the union. Neither score is a probability. Review exports contain source excerpts and author identifiers; share only with authorized reviewers.</p>
 </main><script>const input=document.getElementById('search');const cards=[...document.querySelectorAll('article')];function filter(){{const query=input.value.toLowerCase().trim();let count=0;for(const card of cards){{card.hidden=!card.dataset.search.includes(query);if(!card.hidden)count++;}}document.getElementById('visible').textContent=count+' review pairs shown';}}input.addEventListener('input',filter);filter();</script></body></html>'''

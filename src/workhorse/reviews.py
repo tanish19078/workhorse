@@ -41,14 +41,28 @@ def load_report(path: Path) -> dict:
         for field in ("url", "submitted_at", "verdict"):
             if field in item and not isinstance(item[field], str):
                 raise ValueError(f"Invalid report submission {field}")
+        if item.get("analysis_status", "analyzed") not in ("analyzed", "declined") or not isinstance(item.get("analysis_note", ""), str):
+            raise ValueError("Invalid submission analysis diagnostics")
         if item["id"] in ids:
             raise ValueError("Duplicate report submission ID")
         ids.add(item["id"])
-    for finding in report["findings"]:
+    additional = report.get("additional_candidates", [])
+    if not isinstance(additional, list):
+        raise ValueError("Invalid additional candidate list")
+    seen_pairs = set()
+    for finding in report["findings"] + additional:
         if not isinstance(finding, dict) or finding.get("left") not in ids or finding.get("right") not in ids:
             raise ValueError("Report finding refers to an unknown submission")
         if finding["left"] == finding["right"]:
             raise ValueError("Report finding must refer to two submissions")
+        pair = frozenset((finding["left"], finding["right"]))
+        if pair in seen_pairs:
+            raise ValueError("Duplicate comparison pair in report")
+        seen_pairs.add(pair)
+        if finding.get("category", "review_flag") not in ("review_flag", "broad_candidate"):
+            raise ValueError("Invalid comparison category")
+        if finding.get("evidence_normalization", "legacy") not in ("legacy", "relationships", "raw"):
+            raise ValueError("Invalid evidence normalization")
         for field in ("containment", "jaccard"):
             value = finding.get(field)
             if type(value) not in (int, float) or not math.isfinite(value) or not 0 <= value <= 1:
@@ -93,6 +107,12 @@ def load_report(path: Path) -> dict:
         raise ValueError("Invalid report summary")
     if summary["submissions"] != len(ids) or summary["flagged_pairs"] != len(report["findings"]):
         raise ValueError("Report summary does not match its contents")
+    if type(summary.get("additional_candidates", 0)) is not int or summary.get("additional_candidates", 0) != len(additional):
+        raise ValueError("Additional candidate summary does not match its contents")
+    if any(f.get("category", "review_flag") != "review_flag" for f in report["findings"]):
+        raise ValueError("Broad candidates must remain separate from review flags")
+    if any(f.get("category") != "broad_candidate" for f in additional):
+        raise ValueError("Additional candidates require an explicit broad category")
     groups = report.get("groups")
     if not isinstance(groups, list) or any(not isinstance(group, dict) for group in groups):
         raise ValueError("Invalid report groups")
@@ -131,10 +151,12 @@ def init_reviews(report_path: Path, output: Path) -> int:
     report = load_report(report_path)
     submissions = {item["id"]: item for item in report["submissions"]}
     pairs = {}
-    for finding in report["findings"]:
+    for finding in report["findings"] + report.get("additional_candidates", []):
         left, right = submissions[finding["left"]], submissions[finding["right"]]
         key = pair_key(left, right)
         pairs[key] = {"left": left["id"], "right": right["id"],
+                      "category": finding.get("category", "review_flag"),
+                      "evidence_normalization": finding.get("evidence_normalization", "legacy"),
                       "source_hashes": {left["id"]: left["sha256"], right["id"]: right["sha256"]},
                       "status": "unreviewed", "note": "", "contrary_evidence": "", "history": []}
     save_json(output, {"schema_version": 1, "pairs": pairs}, exclusive=True)
