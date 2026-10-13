@@ -60,6 +60,20 @@ def load_report(path: Path) -> dict:
             raise ValueError("Invalid shared fingerprint count")
         if not isinstance(finding.get("evidence"), list):
             raise ValueError("Finding must contain an evidence list")
+        if "cautions" in finding and (not isinstance(finding["cautions"], list)
+                                     or any(not isinstance(note, str) for note in finding["cautions"])):
+            raise ValueError("Invalid finding cautions")
+        if "signals" in finding:
+            signals = finding["signals"]
+            if not isinstance(signals, dict):
+                raise ValueError("Invalid comparison signals")
+            for key in ("raw_containment", "rarity_weighted_containment"):
+                value = signals.get(key)
+                if type(value) not in (int, float) or not math.isfinite(value) or not 0 <= value <= 1:
+                    raise ValueError("Invalid comparison signal score")
+            for key in ("rarity_basis_authors", "longest_representative_span"):
+                if type(signals.get(key)) is not int or signals[key] < 0:
+                    raise ValueError("Invalid comparison signal count")
         for block in finding["evidence"]:
             if not isinstance(block, dict) or type(block.get("tokens")) is not int or block["tokens"] < 1:
                 raise ValueError("Invalid evidence token count")

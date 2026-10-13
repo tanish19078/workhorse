@@ -4,6 +4,7 @@ from collections import defaultdict
 from dataclasses import dataclass
 import hashlib
 import math
+import platform
 
 from .imports import Submission
 from . import __version__
@@ -21,8 +22,11 @@ class Options:
     max_candidates: int = 100_000
     max_posting: int = 500
     corpus_filter: bool = True
+    normalization: str = "relationships"
 
     def validate(self):
+        if self.normalization not in ("relationships", "raw", "legacy"):
+            raise ValueError("Unknown normalization mode")
         if not 0 <= self.threshold <= 1 or not 0 < self.common_fraction <= 1:
             raise ValueError("Threshold must be in [0, 1]; common fraction in (0, 1]")
         if any(v < 1 for v in (self.min_tokens, self.min_shared, self.k, self.window,
@@ -74,18 +78,20 @@ def compare(submissions: list[Submission], options: Options = Options(),
     groups = defaultdict(list)
     token_lists = []
     all_fingerprints = []
+    raw_fingerprints = []
     for index, item in enumerate(submissions):
         try:
-            tokens = normalize(item.source, item.language)
+            tokens = normalize(item.source, item.language, options.normalization)
         except ValueError as exc:
             raise ValueError(f"Submission {item.id}: {exc}") from exc
         token_lists.append(tokens)
         all_fingerprints.append(fingerprints(tokens, options.k, options.window))
+        raw_fingerprints.append(set(fingerprints(normalize(item.source, item.language, "raw"), options.k, options.window)))
         groups[(item.task, item.language)].append(index)
     baseline_hashes = defaultdict(set)
     for item in baselines or []:
         baseline_hashes[item.language].update(fingerprints(
-            normalize(item.source, item.language), options.k, options.window))
+            normalize(item.source, item.language, options.normalization), options.k, options.window))
     findings = []
     diagnostics = []
     candidates_total = 0
@@ -105,6 +111,8 @@ def compare(submissions: list[Submission], options: Options = Options(),
         crowded = {h for h, members in posting.items() if len(members) > options.max_posting}
         excluded = common | crowded
         retained = {i: set(all_fingerprints[i]) - excluded for i in eligible}
+        frequencies = {h: len({submissions[i].author for i in members}) for h, members in posting.items()}
+        weights = {h: 1 + math.log((len(authors) + 1) / (count + 1)) for h, count in frequencies.items()}
         counts = defaultdict(int)
         for fingerprint, members in sorted(posting.items()):
             if fingerprint in excluded:
@@ -126,15 +134,29 @@ def compare(submissions: list[Submission], options: Options = Options(),
             containment = len(shared) / min(len(left), len(right))
             if containment < options.threshold:
                 continue
+            raw_left, raw_right = raw_fingerprints[i], raw_fingerprints[j]
+            raw_containment = len(raw_left & raw_right) / min(len(raw_left), len(raw_right)) if raw_left and raw_right else 0
+            weighted = sum(weights[h] for h in shared) / min(sum(weights[h] for h in left), sum(weights[h] for h in right))
+            spans = _evidence(submissions[i], submissions[j], token_lists[i], token_lists[j],
+                              all_fingerprints[i], all_fingerprints[j], shared, options.k)
+            cautions = []
+            if len(authors) < 10:
+                cautions.append("Small author corpus: fingerprint rarity is not a reliable population baseline.")
+            if min(len(left), len(right)) < 10:
+                cautions.append("Few distinct retained fingerprints: a high percentage may describe little code.")
+            if spans and max(span["tokens"] for span in spans) < 30:
+                cautions.append("Only short representative matches; inspect whether the algorithm forces this structure.")
             findings.append({"left": submissions[i].id, "right": submissions[j].id,
                              "task": task, "language": language,
                              "containment": round(containment, 6),
                              "jaccard": round(len(shared) / len(left | right), 6),
                              "shared_fingerprints": len(shared),
                              "left_fingerprints": len(left), "right_fingerprints": len(right),
-                             "evidence": _evidence(submissions[i], submissions[j], token_lists[i],
-                                                   token_lists[j], all_fingerprints[i],
-                                                   all_fingerprints[j], shared, options.k)})
+                             "signals": {"raw_containment": round(raw_containment, 6),
+                                         "rarity_weighted_containment": round(weighted, 6),
+                                         "rarity_basis_authors": len(authors),
+                                         "longest_representative_span": max((s["tokens"] for s in spans), default=0)},
+                             "cautions": cautions, "evidence": spans})
         diagnostics.append({"task": task, "language": language, "submissions": len(indexes),
                             "eligible": len(eligible), "short_sources": len(indexes) - len(eligible),
                             "excluded_common_fingerprints": len(set(posting) & common),
@@ -145,7 +167,7 @@ def compare(submissions: list[Submission], options: Options = Options(),
     for index, item in enumerate(submissions):
         metadata.append({**item.metadata(), "sha256": hashlib.sha256(item.source.encode()).hexdigest(),
                          "normalized_tokens": len(token_lists[index])})
-    return {"schema_version": 1, "tool_version": __version__, "options": options.__dict__, "submissions": metadata,
+    return {"schema_version": 1, "tool_version": __version__, "python_version": platform.python_version(), "options": options.__dict__, "submissions": metadata,
             "summary": {"submissions": len(submissions), "groups": len(groups),
                         "candidate_pairs": candidates_total, "flagged_pairs": len(findings)},
             "groups": diagnostics, "findings": findings,

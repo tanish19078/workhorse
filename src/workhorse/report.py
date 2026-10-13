@@ -38,10 +38,18 @@ def render_html(report: dict) -> str:
                             f'<div class="columns">{"".join(columns)}</div></details>')
         search = escape(" ".join(str(x) for x in (left["author"], right["author"], left["id"],
                                                  right["id"], finding["task"])).lower(), quote=True)
+        signals = finding.get("signals", {})
+        diagnostics = ""
+        if signals:
+            diagnostics = (f'<p>Original-token containment {signals["raw_containment"]:.1%} · '
+                           f'Rarity-weighted containment {signals["rarity_weighted_containment"]:.1%} · '
+                           f'{signals["rarity_basis_authors"]} authors in rarity baseline</p>')
+        cautions = "".join(f'<li>{escape(note)}</li>' for note in finding.get("cautions", []))
         cards.append(f'''<article data-search="{search}">
 <h2>{_link(left)} ↔ {_link(right)}</h2>
 <p>{escape(left['author'])} ↔ {escape(right['author'])} · {escape(finding['task'])} · {escape(finding['language'])}</p>
 <p class="metrics">Containment {finding['containment']:.1%} · Jaccard {finding['jaccard']:.1%} · {finding['shared_fingerprints']} shared fingerprints</p>
+{diagnostics}<ul>{cautions}</ul>
 <p>Submitted: {escape(left.get('submitted_at') or 'unknown')} / {escape(right.get('submitted_at') or 'unknown')}</p>
 {''.join(evidence)}
 <p class="muted">Representative spans can include adjacent template code. Compare the original files and alternative explanations before drawing conclusions.</p>

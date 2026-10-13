@@ -6,6 +6,7 @@ import io
 import keyword
 import re
 import tokenize
+from .bindings import python_bindings
 
 
 C_WORDS = set("alignas alignof asm auto bool break case catch char class const constexpr continue default delete do double else enum explicit extern false final float for friend goto if inline int interface long namespace new noexcept null nullptr operator package private protected public return short signed sizeof static strictfp struct super switch synchronized template this throw throws true try typedef typename union unsigned using virtual void volatile while import implements extends abstract assert instanceof native transient record var yield".split())
@@ -26,10 +27,13 @@ class Token:
     line: int
 
 
-def normalize(source: str, language: str) -> list[Token]:
-    """Ignore comments/spacing; fold names; preserve operators and literal spelling."""
+def normalize(source: str, language: str, mode: str = "relationships") -> list[Token]:
+    """Preserve name relationships by default; raw and legacy modes aid evaluation."""
+    if mode not in ("relationships", "raw", "legacy"):
+        raise ValueError("Unknown normalization mode")
     result = []
     if language == "python":
+        bindings = python_bindings(source) if mode == "relationships" else {}
         try:
             for item in tokenize.generate_tokens(io.StringIO(source).readline):
                 if item.type in (tokenize.COMMENT, tokenize.NL, tokenize.NEWLINE,
@@ -37,7 +41,10 @@ def normalize(source: str, language: str) -> list[Token]:
                     continue
                 value = item.string
                 if item.type == tokenize.NAME and not keyword.iskeyword(value):
-                    value = "NAME"
+                    if mode == "legacy":
+                        value = "NAME"
+                    elif mode == "relationships":
+                        value = bindings.get(item.start, value)
                 elif item.type == tokenize.INDENT:
                     value = "INDENT"
                 elif item.type == tokenize.DEDENT:
@@ -47,14 +54,21 @@ def normalize(source: str, language: str) -> list[Token]:
             raise ValueError(f"Cannot tokenize Python source: {exc}") from exc
     else:
         line = 1
+        identifiers = {}
+        previous = ""
         for match in C_LEXER.finditer(source):
             value = match.group()
+            original = value
             kind = match.lastgroup
             if kind not in ("comment", "space"):
                 if kind == "word" and value not in C_WORDS:
-                    value = "NAME"
+                    if mode == "legacy":
+                        value = "NAME"
+                    elif mode == "relationships" and previous not in (".", "::", "->"):
+                        value = identifiers.setdefault(value, f"V{len(identifiers)}")
                 result.append(Token(value, line))
-            line += value.count("\n")
+                previous = original
+            line += original.count("\n")
     return result
 
 

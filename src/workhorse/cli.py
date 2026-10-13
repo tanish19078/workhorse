@@ -12,6 +12,7 @@ from .reviews import STATES, init_reviews, load_reviews, record_review
 from .packets import export_packet
 from .coverage import coverage
 from .reviews import save_json
+from .evaluation import evaluate
 import json
 
 
@@ -29,11 +30,16 @@ def main(argv=None):
     inventory.add_argument("--task", action="append", help="Expected task; repeat for several")
     inventory.add_argument("--author", action="append", help="Expected author; repeat for several")
     inventory.add_argument("--output", type=Path)
+    benchmark = commands.add_parser("evaluate", help="Measure flags against labeled development and holdout cases")
+    benchmark.add_argument("benchmark", type=Path)
+    benchmark.add_argument("--threshold", type=float, default=0.5)
+    benchmark.add_argument("--output", type=Path)
     review = commands.add_parser("review", help="Generate JSON and HTML comparison reports")
     review.add_argument("manifest", type=Path)
     review.add_argument("--output", type=Path, default=Path("reports"))
     review.add_argument("--baseline", type=Path, help="Manifest of known allowed templates")
     review.add_argument("--threshold", type=float, default=0.5, help="Minimum containment (default: 0.5)")
+    review.add_argument("--normalization", choices=("relationships", "raw", "legacy"), default="relationships")
     review.add_argument("--min-tokens", type=int, default=30)
     review.add_argument("--min-shared", type=int, default=3)
     review.add_argument("--k", type=int, default=9, help="Tokens per shingle")
@@ -64,6 +70,14 @@ def main(argv=None):
     packet.add_argument("--output", type=Path, required=True)
     args = parser.parse_args(argv)
     try:
+        if args.command == "evaluate":
+            result = evaluate(args.benchmark, Options(threshold=args.threshold))
+            if args.output:
+                save_json(args.output, result, exclusive=True)
+                print(f"Evaluation saved to {args.output}")
+            else:
+                print(json.dumps(result, indent=2))
+            return 0
         if args.command == "packet":
             count = export_packet(args.report, args.workspace, args.pair, args.output)
             print(f"Exported {count} reviewed pairs to {args.output}")
