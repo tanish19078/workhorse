@@ -6,10 +6,11 @@ It does not decide whether someone copied code.
 
 **Python 3.11+ · no runtime dependencies · Python, Java, C, and C++**
 
-Version 0.2 preserves Python binding identities and C-family identifier
-relationships, exposes complementary comparison signals, and adds a labeled
-evaluation command. These changes improve what the reviewer can inspect;
-they do not establish a measured real-world false-positive rate.
+Version 0.3 separates broad retrieval leads from binding-supported review
+flags. It retains semantically edited-copy candidates without silently
+promoting weak evidence, reports declined analyses, scopes allowed templates
+by task, and evaluates retrieval separately from strict flags. These changes
+do not establish a measured real-world false-positive rate.
 
 ## Try it
 
@@ -61,7 +62,8 @@ workhorse review data/export/manifest.json \
 ```
 
 Baseline manifests identify allowed templates. Their token fingerprints are
-excluded by language. Existing report files require `--force` to replace.
+excluded by task and language; set a baseline's task to `*` only when it is
+permitted across every task. Existing report files require `--force` to replace.
 
 ## Record a review and export evidence
 
@@ -88,6 +90,9 @@ contain selected-pair reports, reviewer notes, source references, provenance,
 and checksums. They exclude full original source files and do not send anything
 externally. Existing packets are never overwritten. Group diagnostics inside
 a packet still describe the original full comparison run.
+Review workspaces include both strict flags and broad-only leads. The category
+is displayed by `review-list` and remains explicit inside an evidence packet;
+a human note does not turn a broad lead into a strict engine flag.
 
 Coverage checks show expected task/author cells missing from the imported
 dataset. They cannot tell whether those sources exist on the platform.
@@ -106,6 +111,9 @@ dataset. They cannot tell whether those sources exist on the platform.
    the same author are not paired. Rank qualifying pairs by containment.
 6. Verify token equality for representative matched spans and map them back
    to source lines.
+7. Run a second, flattened-identifier retrieval pass. Additional matches appear
+   in `additional_candidates` with their own normalization labels, not in
+   `findings` or the strict flag count. Use `--no-broad-retrieval` to disable it.
 
 Containment is shared distinct fingerprints divided by the smaller retained
 set. Jaccard is shared fingerprints divided by the union. A score is not a
@@ -114,7 +122,10 @@ algorithms, or a shared allowed source can produce misleading similarities.
 
 Python uses the standard-library AST and symbol table to distinguish local,
 global, closure, and comprehension bindings. Unsupported or ambiguous scopes
-are declined rather than silently flattened. C-family normalization is lexical
+are declined rather than silently flattened. Declined sources are listed in
+the report; lexical retrieval can still nominate them for manual inspection.
+Even the broader pass can fail on malformed tokens, so no candidate does not
+mean a declined source was adequately analyzed. C-family normalization is lexical
 and does not resolve declarations, overloads, or shadowed scopes. Cross-language
 comparisons and semantic equivalence detection are not implemented. Evidence
 spans are samples, capped at five and expanded by up to 200 tokens on either
@@ -141,11 +152,15 @@ The benchmark has separate development and holdout tasks, explicit construction
 provenance, and labels for shared origin, independent fixtures, permitted
 templates, insufficient code, and ambiguous scenarios. Ambiguous and
 insufficient cases are excluded from precision/recall and counted separately.
-Empty denominators produce null metrics. See [evaluation methodology](docs/evaluation.md).
+Empty denominators produce null metrics. Retrieval precision/recall and strict
+flag metrics are reported separately. The published fixtures are inspected
+regressions; their historical holdout label is not a fresh blind evaluation.
+See [evaluation methodology](docs/evaluation.md).
 
 The legacy mode is broader: changing variable relationships can cause the
-binding-aware mode to miss a transformed copy. Inspect both reports when
-recall matters. Neither normalization can distinguish an independently
+binding-aware mode to miss a transformed copy. The default broad pass retains
+such matches as additional leads, with the cost of more manual inspection.
+Neither normalization can distinguish an independently
 written canonical implementation from an identical copied one. Default
 thresholds remain heuristics until tested on real labeled problem datasets.
 
@@ -154,7 +169,8 @@ thresholds remain heuristics until tested on real labeled problem datasets.
 Candidate discovery avoids unconditional all-pairs comparison, but dense
 similarity groups can still be expensive. Default guards exclude fingerprint
 postings above 500 submissions and stop before exceeding 100,000 candidate
-pairs. Exclusions appear in the report; exceeding the candidate budget returns
+pairs across both passes, counting pair visits in each pass. Exclusions appear
+in `groups` and `retrieval_groups`; exceeding the candidate budget returns
 an error rather than a partial success. Split exports by task or adjust
 `--max-posting` and `--max-candidates` to suit your machine.
 

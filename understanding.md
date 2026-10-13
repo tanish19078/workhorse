@@ -28,7 +28,8 @@ does not guarantee access to a protected site.
 | `workhorse validate` | Check JSON/CSV records, source paths, encoding, and IDs | Built |
 | Token normalizer | Preserve Python bindings and C-family identifier relationships, literals, operators, and source lines | Upgraded in 0.2 |
 | Indexed comparison engine | Nominate same-task, same-language pairs without unconditional all-pairs comparison | Built |
-| Template filtering | Exclude allowed baseline fingerprints and frequent corpus content | Built; corpus filtering can be disabled |
+| Broad retrieval pass | Retain edited-copy leads separately from binding-supported flags | Added in 0.3 |
+| Template filtering | Exclude allowed baseline fingerprints by task/language and frequent corpus content | Global baselines require an explicit wildcard |
 | `workhorse review` | Produce searchable HTML and reproducible JSON with representative line evidence | Built |
 | `workhorse coverage` | Summarize missing expected imports and duplicate source exports | Built |
 | Review workspace commands | Store source-bound judgments, notes, and contrary evidence | Built |
