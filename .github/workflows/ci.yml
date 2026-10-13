@@ -24,6 +24,7 @@ jobs:
       - run: python -m compileall -q src
       - run: workhorse validate examples/demo/manifest.json
       - run: workhorse review examples/demo/manifest.json --output reports/demo
+      - run: workhorse evaluate examples/benchmark/cases.json --output reports/demo/evaluation.json
       - uses: actions/upload-artifact@v4
         with:
           name: synthetic-demo-${{ matrix.python }}
