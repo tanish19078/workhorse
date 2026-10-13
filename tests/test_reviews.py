@@ -65,3 +65,9 @@ class ReviewTests(unittest.TestCase):
         self.report_path.write_text(json.dumps(self.report), encoding="utf-8")
         with self.assertRaisesRegex(ValueError, "does not match"):
             init_reviews(self.report_path, self.root / "new.json")
+
+    def test_invalid_optional_signals_rejected(self):
+        self.report["findings"][0]["signals"]["raw_containment"] = "bad"
+        self.report_path.write_text(json.dumps(self.report), encoding="utf-8")
+        with self.assertRaisesRegex(ValueError, "signal score"):
+            init_reviews(self.report_path, self.root / "new.json")

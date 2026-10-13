@@ -67,6 +67,14 @@ class CompareTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             compare([], Options(k=0))
 
+    def test_complementary_signals_do_not_replace_scores(self):
+        other = CODE.replace("total", "score").replace("previous", "last")
+        finding = compare([submission("a"), submission("b", other)])["findings"][0]
+        self.assertEqual(finding["containment"], 1)
+        self.assertLess(finding["signals"]["raw_containment"], 1)
+        self.assertEqual(finding["signals"]["rarity_basis_authors"], 2)
+        self.assertTrue(finding["cautions"])
+
     def test_crowded_postings_recorded(self):
         report = compare([submission(str(i)) for i in range(4)], Options(max_posting=2))
         self.assertFalse(report["findings"])
