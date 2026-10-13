@@ -30,6 +30,7 @@ class CompareTests(unittest.TestCase):
         self.assertEqual(finding["containment"], 1)
         self.assertIn("score", finding["evidence"][0]["right"]["excerpt"])
         self.assertEqual(report["summary"]["candidate_pairs"], 1)
+        self.assertFalse(report["additional_candidates"])
 
     def test_no_cross_task_or_language_pairs(self):
         report = compare([submission("a"), submission("b", task="other"),
@@ -49,6 +50,17 @@ class CompareTests(unittest.TestCase):
         report = compare([submission("a"), submission("b")], baselines=[submission("template")])
         self.assertFalse(report["findings"])
         self.assertGreater(report["groups"][0]["excluded_common_fingerprints"], 0)
+        self.assertFalse(report["additional_candidates"])
+
+    def test_task_specific_baseline_does_not_hide_other_tasks(self):
+        items = [submission("a", task="other"), submission("b", task="other")]
+        report = compare(items, baselines=[submission("base", task="sample")])
+        self.assertTrue(report["findings"])
+
+    def test_global_baseline_requires_explicit_wildcard(self):
+        report = compare([submission("a"), submission("b")], baselines=[submission("base", task="*")])
+        self.assertFalse(report["findings"])
+        self.assertFalse(report["additional_candidates"])
 
     def test_common_corpus_content_removed(self):
         report = compare([submission(str(i)) for i in range(5)])

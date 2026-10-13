@@ -23,3 +23,12 @@ class EvaluationTests(unittest.TestCase):
             counts = row["counts"]
             self.assertEqual(len(row["cases"]), sum(counts[k] for k in ("true_positive", "false_positive", "true_negative", "false_negative", "insufficient_cases", "ambiguous_cases")))
         self.assertIn("do not estimate", result["interpretation"])
+
+    def test_edited_origin_retrieved_without_changing_strict_flag_metric(self):
+        path = Path(__file__).resolve().parents[1] / "examples/benchmark/cases.json"
+        row = next(r for r in evaluate(path)["results"] if r["normalization"] == "relationships" and r["split"] == "development")
+        case = next(c for c in row["cases"] if c["id"] == "different-dataflow")
+        self.assertFalse(case["flagged"])
+        self.assertTrue(case["retrieved"])
+        self.assertEqual(case["retrieval_category"], "broad_candidate")
+        self.assertGreater(row["retrieval_recall"], row["recall"])
