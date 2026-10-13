@@ -26,13 +26,14 @@ does not guarantee access to a protected site.
 | --- | --- | --- |
 | `workhorse index` | Turn `task/author/source.ext` folders into a validated manifest | Built |
 | `workhorse validate` | Check JSON/CSV records, source paths, encoding, and IDs | Built |
-| Token normalizer | Compare renamed identifiers while preserving literals, operators, and source lines | Built: Python, Java, C, C++ |
+| Token normalizer | Preserve Python bindings and C-family identifier relationships, literals, operators, and source lines | Upgraded in 0.2 |
 | Indexed comparison engine | Nominate same-task, same-language pairs without unconditional all-pairs comparison | Built |
 | Template filtering | Exclude allowed baseline fingerprints and frequent corpus content | Built; corpus filtering can be disabled |
 | `workhorse review` | Produce searchable HTML and reproducible JSON with representative line evidence | Built |
 | `workhorse coverage` | Summarize missing expected imports and duplicate source exports | Built |
 | Review workspace commands | Store source-bound judgments, notes, and contrary evidence | Built |
 | `workhorse packet` | Export selected reviewed pairs, provenance, and integrity checksums | Built |
+| `workhorse evaluate` | Compare normalization modes on labeled development/holdout fixtures | Built; synthetic diagnostics only |
 | Regression suite and CI | Check imports, normalization, grouping, exclusions, escaping, and the full workflow | Tests pass locally; CI configured for Python 3.11–3.13 |
 
 Today's local smoke test processed 1,000 synthetic submissions across 100 tasks

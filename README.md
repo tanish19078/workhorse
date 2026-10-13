@@ -6,6 +6,11 @@ It does not decide whether someone copied code.
 
 **Python 3.11+ · no runtime dependencies · Python, Java, C, and C++**
 
+Version 0.2 preserves Python binding identities and C-family identifier
+relationships, exposes complementary comparison signals, and adds a labeled
+evaluation command. These changes improve what the reviewer can inspect;
+they do not establish a measured real-world false-positive rate.
+
 ## Try it
 
 ```bash
@@ -90,8 +95,10 @@ dataset. They cannot tell whether those sources exist on the platform.
 ## How comparisons work
 
 1. Validate the export and read UTF-8 source files locally.
-2. Remove comments and whitespace; normalize identifiers while retaining
-   keywords, operators, literal spelling, and Python indentation.
+2. Remove comments and whitespace; preserve Python scope/binding identities,
+   external names, and API attributes. For C-family code, preserve repeated
+   identifier relationships and member names using lexical normalization.
+   Retain keywords, operators, literal spelling, and Python indentation.
 3. Fingerprint token shingles using deterministic winnowing.
 4. Group submissions by task and language. Remove known templates and frequent
    corpus fingerprints when there are at least five eligible authors.
@@ -105,11 +112,42 @@ set. Jaccard is shared fingerprints divided by the union. A score is not a
 plagiarism probability. Matching boilerplate, short solutions, canonical
 algorithms, or a shared allowed source can produce misleading similarities.
 
-The lexical normalizer does not track variable binding or build a syntax tree.
-Replacing identifiers may hide meaningful differences. Cross-language
+Python uses the standard-library AST and symbol table to distinguish local,
+global, closure, and comprehension bindings. Unsupported or ambiguous scopes
+are declined rather than silently flattened. C-family normalization is lexical
+and does not resolve declarations, overloads, or shadowed scopes. Cross-language
 comparisons and semantic equivalence detection are not implemented. Evidence
 spans are samples, capped at five and expanded by up to 200 tokens on either
-side; they can include adjacent excluded template content.
+side; they can include adjacent excluded template content. Python normalization
+does not rewrite names embedded in string tokens, dynamic attribute names,
+or every declaration form; these can lower recall. Python runtime version is
+recorded because symbol-table representations can vary between releases.
+
+Reports separately show original-token containment, rarity-weighted
+containment, and representative match length. Original-token scores include
+templates, unlike the filtered main score. Rarity weights use the imported
+task/language author corpus and are not meaningful population estimates for
+small exports. The scores are correlated diagnostics, not independent votes.
+
+## Evaluate before changing thresholds
+
+```bash
+workhorse evaluate examples/benchmark/cases.json --output reports/evaluation.json
+workhorse review data/export/manifest.json --normalization legacy --output reports/broad
+workhorse review data/export/manifest.json --normalization relationships --output reports/bindings
+```
+
+The benchmark has separate development and holdout tasks, explicit construction
+provenance, and labels for shared origin, independent fixtures, permitted
+templates, insufficient code, and ambiguous scenarios. Ambiguous and
+insufficient cases are excluded from precision/recall and counted separately.
+Empty denominators produce null metrics. See [evaluation methodology](docs/evaluation.md).
+
+The legacy mode is broader: changing variable relationships can cause the
+binding-aware mode to miss a transformed copy. Inspect both reports when
+recall matters. Neither normalization can distinguish an independently
+written canonical implementation from an identical copied one. Default
+thresholds remain heuristics until tested on real labeled problem datasets.
 
 ## Larger datasets
 
