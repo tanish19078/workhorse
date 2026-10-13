@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "description": "Synthetic diagnostic benchmark with declared construction provenance. Not a population accuracy estimate.",
+  "description": "Synthetic regression scenarios with declared provenance and sample checks. Historical split names are retained; these fixtures have been inspected, so this is not blind evaluation.",
   "cases": [
     {
       "id": "renamed-weighted",
@@ -102,6 +102,274 @@
       "left": "def gcd(a, b):\n    while b != 0:\n        remainder = a % b\n        a = b\n        b = remainder\n    return a\nprint(gcd(24, 18))\n",
       "right": "def recursive_gcd(first, second):\n    if second == 0:\n        return first\n    return recursive_gcd(second, first % second)\nprint(recursive_gcd(24, 18))\n",
       "provenance": "Separately constructed recursive implementation of the same GCD fixture; synthetic negative, not an observed real-world authorship label."
+    },
+    {
+      "id": "independent-search",
+      "task": "search",
+      "split": "holdout",
+      "label": "independent",
+      "language": "python",
+      "left": "def locate(items, target):\n    low = 0\n    high = len(items) - 1\n    while low <= high:\n        middle = (low + high) // 2\n        if items[middle] == target:\n            return middle\n        if items[middle] < target:\n            low = middle + 1\n        else:\n            high = middle - 1\n    return -1\n",
+      "right": "def locate(items, target):\n    def search(start, stop):\n        if start > stop:\n            return -1\n        pivot = (start + stop) // 2\n        element = items[pivot]\n        if element == target:\n            return pivot\n        if element > target:\n            return search(start, pivot - 1)\n        return search(pivot + 1, stop)\n    return search(0, len(items) - 1)\n",
+      "provenance": "Separately constructed synthetic implementations of the same algorithm; checked on the included sample inputs, not observed real-world authorship.",
+      "sample_checks": [
+        {
+          "arguments": [
+            [
+              2,
+              4,
+              7,
+              11
+            ],
+            7
+          ],
+          "expected": 2
+        },
+        {
+          "arguments": [
+            [
+              2,
+              4,
+              7,
+              11
+            ],
+            6
+          ],
+          "expected": -1
+        },
+        {
+          "arguments": [
+            [],
+            0
+          ],
+          "expected": -1
+        }
+      ]
+    },
+    {
+      "id": "independent-fib",
+      "task": "fib",
+      "split": "holdout",
+      "label": "independent",
+      "language": "python",
+      "left": "def fib(n):\n    first = 0\n    second = 1\n    for step in range(n):\n        first, second = second, first + second\n    return first\n",
+      "right": "def fib(n):\n    table = [0, 1]\n    if n < 2:\n        return table[n]\n    for position in range(2, n + 1):\n        table.append(table[position - 1] + table[position - 2])\n    return table[n]\n",
+      "provenance": "Separately constructed synthetic implementations of the same algorithm; checked on the included sample inputs, not observed real-world authorship.",
+      "sample_checks": [
+        {
+          "arguments": [
+            0
+          ],
+          "expected": 0
+        },
+        {
+          "arguments": [
+            1
+          ],
+          "expected": 1
+        },
+        {
+          "arguments": [
+            12
+          ],
+          "expected": 144
+        }
+      ]
+    },
+    {
+      "id": "independent-prefix",
+      "task": "prefix",
+      "split": "holdout",
+      "label": "independent",
+      "language": "python",
+      "left": "def prefix(values):\n    running = 0\n    output = []\n    for item in values:\n        running += item\n        output.append(running)\n    return output\n",
+      "right": "from itertools import accumulate\ndef prefix(values):\n    stream = accumulate(values)\n    output = list(stream)\n    return output\n",
+      "provenance": "Separately constructed synthetic implementations of the same algorithm; checked on the included sample inputs, not observed real-world authorship.",
+      "sample_checks": [
+        {
+          "arguments": [
+            []
+          ],
+          "expected": []
+        },
+        {
+          "arguments": [
+            [
+              2,
+              3,
+              -1
+            ]
+          ],
+          "expected": [
+            2,
+            5,
+            4
+          ]
+        }
+      ]
+    },
+    {
+      "id": "independent-unique",
+      "task": "unique",
+      "split": "holdout",
+      "label": "independent",
+      "language": "python",
+      "left": "def distinct(values):\n    lookup = dict.fromkeys(values)\n    keys = lookup.keys()\n    output = list(keys)\n    return output\n",
+      "right": "def distinct(values):\n    seen = set()\n    output = []\n    for value in values:\n        if value not in seen:\n            seen.add(value)\n            output.append(value)\n    return output\n",
+      "provenance": "Separately constructed synthetic implementations of the same algorithm; checked on the included sample inputs, not observed real-world authorship.",
+      "sample_checks": [
+        {
+          "arguments": [
+            []
+          ],
+          "expected": []
+        },
+        {
+          "arguments": [
+            [
+              3,
+              1,
+              3,
+              2,
+              1
+            ]
+          ],
+          "expected": [
+            3,
+            1,
+            2
+          ]
+        }
+      ]
+    },
+    {
+      "id": "independent-minimum",
+      "task": "minimum",
+      "split": "holdout",
+      "label": "independent",
+      "language": "python",
+      "left": "def minimum(values):\n    if not values:\n        return None\n    ordered = sorted(values)\n    first = ordered[0]\n    return first\n",
+      "right": "def minimum(values):\n    result = None\n    for element in values:\n        if result is None or element < result:\n            result = element\n    return result\n",
+      "provenance": "Separately constructed synthetic implementations of the same algorithm; checked on the included sample inputs, not observed real-world authorship.",
+      "sample_checks": [
+        {
+          "arguments": [
+            []
+          ],
+          "expected": null
+        },
+        {
+          "arguments": [
+            [
+              7,
+              -2,
+              4
+            ]
+          ],
+          "expected": -2
+        }
+      ]
+    },
+    {
+      "id": "independent-factorial",
+      "task": "factorial",
+      "split": "holdout",
+      "label": "independent",
+      "language": "python",
+      "left": "import math\ndef factorial(n):\n    if n < 0:\n        raise ValueError(\"negative\")\n    result = math.factorial(n)\n    return result\n",
+      "right": "def factorial(n):\n    if n < 0:\n        raise ValueError(\"negative\")\n    result = 1\n    for value in range(2, n + 1):\n        result *= value\n    return result\n",
+      "provenance": "Separately constructed synthetic implementations of the same algorithm; checked on the included sample inputs, not observed real-world authorship.",
+      "sample_checks": [
+        {
+          "arguments": [
+            0
+          ],
+          "expected": 1
+        },
+        {
+          "arguments": [
+            1
+          ],
+          "expected": 1
+        },
+        {
+          "arguments": [
+            6
+          ],
+          "expected": 720
+        }
+      ]
+    },
+    {
+      "id": "independent-parity",
+      "task": "parity",
+      "split": "holdout",
+      "label": "independent",
+      "language": "python",
+      "left": "def odd_count(values):\n    answer = 0\n    for value in values:\n        if value % 2 != 0:\n            answer += 1\n    return answer\n",
+      "right": "def odd_count(values):\n    remainders = map(lambda item: item % 2, values)\n    result = sum(remainders)\n    return result\n",
+      "provenance": "Separately constructed synthetic implementations of the same algorithm; checked on the included sample inputs, not observed real-world authorship.",
+      "sample_checks": [
+        {
+          "arguments": [
+            []
+          ],
+          "expected": 0
+        },
+        {
+          "arguments": [
+            [
+              1,
+              2,
+              3,
+              -5
+            ]
+          ],
+          "expected": 3
+        }
+      ]
+    },
+    {
+      "id": "independent-reverse",
+      "task": "reverse",
+      "split": "holdout",
+      "label": "independent",
+      "language": "python",
+      "left": "def reverse(values):\n    if not values:\n        return []\n    result = values[::-1]\n    return result\n",
+      "right": "def reverse(values):\n    result = []\n    position = len(values) - 1\n    while position >= 0:\n        result.append(values[position])\n        position -= 1\n    return result\n",
+      "provenance": "Separately constructed synthetic implementations of the same algorithm; checked on the included sample inputs, not observed real-world authorship.",
+      "sample_checks": [
+        {
+          "arguments": [
+            []
+          ],
+          "expected": []
+        },
+        {
+          "arguments": [
+            [
+              1,
+              4,
+              7
+            ]
+          ],
+          "expected": [
+            7,
+            4,
+            1
+          ]
+        }
+      ]
+    },
+    {
+      "id": "embedded-weighted",
+      "task": "weighted",
+      "split": "development",
+      "label": "shared_origin",
+      "language": "python",
+      "left": "\"\"\"Synthetic fixture: weighted changes over a sequence.\"\"\"\n\n\ndef score(values):\n    result = 0\n    previous = -7\n    for value in values:\n        if value > previous:\n            result += value * 13\n        else:\n            result -= value * 3\n        previous = value\n    return result\n\n\nprint(score([1, 5, 2]))\n",
+      "right": "def unrelated(values):\n    return [element * 2 for element in values]\n\n\"\"\"Synthetic fixture: weighted changes over a sequence.\"\"\"\n\n\ndef score(values):\n    result = 0\n    previous = -7\n    for value in values:\n        if value > previous:\n            result += value * 13\n        else:\n            result -= value * 3\n        previous = value\n    return result\n\n\nprint(score([1, 5, 2]))\n",
+      "provenance": "Right created by prepending an unrelated helper to the original weighted source."
     }
   ]
 }
