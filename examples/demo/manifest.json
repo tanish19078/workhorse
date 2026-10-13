@@ -1,0 +1,5 @@
+[
+  {"id":"sample-001","author":"amber","task":"window-score","language":"python","path":"amber.py","submitted_at":"2026-01-01T10:00:00Z","verdict":"accepted"},
+  {"id":"sample-002","author":"birch","task":"window-score","language":"python","path":"birch.py","submitted_at":"2026-01-01T10:10:00Z","verdict":"accepted"},
+  {"id":"sample-003","author":"cedar","task":"window-score","language":"python","path":"cedar.py","submitted_at":"2026-01-01T10:05:00Z","verdict":"accepted"}
+]
