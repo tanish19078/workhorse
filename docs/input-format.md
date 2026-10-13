@@ -39,6 +39,10 @@ are references only and are never fetched. Source hashes are SHA-256 of the
 decoded source re-encoded as UTF-8, with a leading UTF-8 BOM removed; they are
 not byte-for-byte hashes of the original exported files.
 
+Baseline manifests use this same format. Templates apply only to matching
+`task` and `language`; use `task: "*"` for explicitly permitted global templates.
+This changes the language-wide baseline behavior of versions before 0.3.
+
 Folder indexing scans exactly three levels: `task/author/source.ext`.
 Supported extensions: `.py`, `.java`, `.c`, `.cc`, `.cpp`, `.cxx`. Keep the
 generated manifest at the export root. Rename it only after generation or

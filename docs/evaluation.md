@@ -1,56 +1,61 @@
-# False-positive evaluation
+# Evaluating retrieval and review flags
 
-Run `workhorse evaluate examples/benchmark/cases.json`. This compares legacy
-identifier flattening with the default relationship-preserving normalization
-using the same threshold and fingerprint settings.
+Run `workhorse evaluate examples/benchmark/cases.json`. The 19 synthetic
+regression scenarios compare legacy flattening with binding-aware normalization
+at the same 0.5 threshold. The latter also runs a broad retrieval pass by default.
 
 ## Labels and provenance
 
-- `shared_origin`: the right fixture was deliberately derived from the left.
-  Semantic edits can still have shared origin, even when behavior changes.
-- `independent`: separately constructed synthetic implementations; not evidence
-  of independence in a real submission population.
+- `shared_origin`: one source was deliberately derived from another, including
+  renaming, semantic edits, and an unrelated helper added before copied code.
+- `independent`: separately constructed synthetic algorithm implementations;
+  not an observed real submission population or proof of independent authorship.
 - `allowed`: similarity explained by an explicitly permitted baseline.
-- `ambiguous`: construction scenario whose resemblance could also arise
-  independently. Do not treat it as an accuracy label.
-- `insufficient`: too little distinctive source for an actionable comparison.
+- `ambiguous`: a canonical structure that could arise independently. This
+  scenario does not supply an accuracy label and is counted separately.
+- `insufficient`: snippets too short for distinctive comparison.
 
-Cases require an ID, task, language, both sources, label, split, and provenance.
-An optional `baseline` supplies permitted source. Task overlap between
-development and holdout splits is rejected. This prevents obvious task leakage,
-but does not guarantee independent algorithm families or real-world coverage.
+Eight new pairs use different implementations of binary search, Fibonacci,
+prefix sums, deduplication, minimum, factorial, odd counting, and reversal.
+Their stated equivalence was checked on the included sample inputs when
+authoring the fixtures. Evaluation only parses/compares source; it never runs
+submitted programs or the fixture sample checks.
 
-## Metrics
+The original development/holdout task split is retained and cross-split task
+overlap is rejected. All published scenarios have now been inspected. These
+results are regression diagnostics, not a fresh blind holdout or population
+accuracy estimate.
 
-Precision is correct shared-origin flags divided by all flags on labeled
-positive/negative cases. Recall is flagged shared-origin cases divided by all
-shared-origin cases. False-positive rate divides flagged independent/allowed
-cases by all independent/allowed cases. Each metric includes its confusion
-counts; absent denominators return null. Ambiguous and insufficient counts are
-reported separately.
+## Separate stages and metrics
 
-## Current diagnostic results
+`findings` contains strict flags under the selected normalization.
+`additional_candidates` contains leads found only by broader flattened-name
+retrieval. They retain that category through review notes and evidence exports.
+Strict metrics count only flags; retrieval metrics count either category.
+Retrieval false positives represent additional inspection work, not automatic
+accusations. Ambiguous/insufficient scenarios are excluded from both sets of
+precision/recall metrics and reported separately. Missing denominators return
+null, and all rates include their underlying confusion counts.
 
-At the default 0.5 containment threshold, the ten synthetic fixtures expose:
+## Current default results
 
-| Split | Legacy flags on shared-origin cases | Binding-mode flags on shared-origin cases | Negative flags |
-| --- | --- | --- | --- |
-| Development | 2/2 | 1/2 | 0/2 in both modes |
-| Holdout | 2/2 | 2/2 | 0/1 in both modes |
+| Cohort | Known-origin strict flags | Known-origin retrieved | Negative strict flags | Negative retrieved |
+| --- | --- | --- | --- | --- |
+| Historical development | 1/3 | 3/3 | 0/2 | 0/2 |
+| Historical holdout | 2/2 | 2/2 | 0/9 | 1/9 |
+| Total diagnostic cases | 3/5 | 5/5 | 0/11 | 1/11 |
 
-The binding mode misses a source-derived case with deliberately changed
-variable relationships. Both modes flag the canonical-loop ambiguity scenario.
-Both abstain on the two tiny snippets. These are diagnostic tradeoffs, not proof
-that false positives decreased. The holdout split has only one independent negative
-example, far too little to estimate a useful population false-positive rate.
+Broader retrieval restores the semantically edited and helper-prefixed copies.
+The independent factorial pair is a broad-only lead, not a strict flag. The
+canonical-loop ambiguity remains flagged; no syntax score can establish its
+origin. Both short snippets are skipped. Thresholds were not tuned to produce
+these counts. Nineteen scenarios are far too few to certify real-world results.
 
-## Before calibration
+## Next calibration requirement
 
-Collect authorized, labeled independent solutions to the same problems,
-including identical algorithm choices and small formula solutions. Add known
-transformed copies, permitted libraries, and templates. Split entire problems
-and source families before tuning, and reserve the holdout set for evaluation.
-Report precision, false-positive rate, recall, sample counts, and uncertainty.
-Do not tune thresholds to the toy fixtures or use similarity scores as guilt
-probabilities. More structural complexity does not remove canonical-code
-ambiguity.
+Collect authorized real independent solutions to the same tasks, including
+identical algorithm choices, libraries, templates, and small formulas. Add
+known transformations and split whole problems/source families before tuning.
+Measure both inspection workload and missed origins, with sample counts and
+uncertainty. Keep a new unseen evaluation set. Similarity scores are not guilt
+probabilities, and the unit test count is not an accuracy metric.
