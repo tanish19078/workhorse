@@ -6,7 +6,7 @@ It does not decide whether someone copied code.
 
 **Python 3.11+ · no runtime dependencies · Python, Java, C, and C++**
 
-Version 0.3 separates broad retrieval leads from binding-supported review
+Version 0.4 adds optional MOSS staging/result import and isolated-function supporting evidence. Version 0.3 separates broad retrieval leads from binding-supported review
 flags. It retains semantically edited-copy candidates without silently
 promoting weak evidence, reports declined analyses, scopes allowed templates
 by task, and evaluates retrieval separately from strict flags. These changes
@@ -201,3 +201,24 @@ Only import source you are authorized to review. Raw exports and generated
 reports are ignored by Git; reports contain identifiers and source excerpts.
 
 MIT licensed.
+
+## Supplementary comparison tools
+
+`workhorse-moss` prepares task/language batches locally, previews the command
+for your own Stanford Perl client, and imports saved MOSS index pages. Only
+`submit --execute` sends one chosen batch to Stanford. Accounts/clients are
+not bundled and CI never submits source. See [the MOSS workflow](docs/moss.md).
+
+`workhorse-functions` adds exact binding-normalized Python function excerpts
+for already retrieved pairs. Unrelated helper insertion no longer shifts local
+scope identities in this evidence view. It checks source provenance, declines
+context-sensitive declarations and retains each pair's original category.
+See [function supporting evidence](docs/function-signals.md).
+
+Both entry points are also available without installing via
+`PYTHONPATH=src python -m workhorse.moss` and
+`PYTHONPATH=src python -m workhorse.function_signals`. Their JSON sidecars stay
+separate from the normal report and packet. Similarity tools can share biases;
+combined scores are not independent votes or plagiarism probabilities. This
+release is tested locally with synthetic fixtures and a mocked MOSS client,
+not live MOSS submissions or a real labeled contest population.

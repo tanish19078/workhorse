@@ -70,3 +70,23 @@ submission code or contest identifiers are included in the tracked project.
 Shell authentication is separate from browser sign-in. Browser editor commits
 can publish the source tree, while the original local implementation history
 is retained separately. Remote CI results must be verified after publication.
+
+## Version 0.4 iteration
+
+Added an optional MOSS wrapper: neutral local staging, task/language batches,
+applicable baselines, dry-run commands, explicitly selected single-batch
+submission through a user-owned Perl client, hash verification/receipts, and
+saved-index import with directional percentages. MOSS is a remote Stanford
+service; accounts and client identifiers remain outside Git. No live MOSS
+submission has been performed. Local comparison still needs no network.
+
+Added isolated Python function evidence to make local binding identities stable
+under unrelated module helper insertion. It checks report provenance, declines
+context-sensitive functions and excludes known complete baseline functions.
+It preserves strict/broad categories and does not claim new retrieval accuracy.
+
+We can tune software parameters against labeled validation data, not fine-tune
+or exhaust the assistant's inaccessible training corpus. Further measured
+accuracy work requires authorized real independent solutions and a new unseen
+problem/source-family split. Published synthetic scenarios remain regression
+checks; adding complexity alone does not establish fewer false positives.

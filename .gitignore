@@ -11,3 +11,6 @@ reports/
 reviews/
 .env
 
+# User-owned MOSS clients contain account identifiers.
+moss.pl
+moss-client*
