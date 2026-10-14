@@ -90,3 +90,16 @@ or exhaust the assistant's inaccessible training corpus. Further measured
 accuracy work requires authorized real independent solutions and a new unseen
 problem/source-family split. Published synthetic scenarios remain regression
 checks; adding complexity alone does not establish fewer false positives.
+
+## Version 0.5 iteration
+
+Added a bounded development-only threshold sweep and split-integrity checks for
+exact source reuse and declared source families. The check found real leakage
+in the toy fixture split: a canonical ambiguous case reused development-template
+source. It now belongs to development. Labeled confusion totals are unchanged;
+no claim of a fresh blind holdout is made. A four-point sweep exposes recall
+tradeoffs without automatically changing production thresholds.
+
+Duplicate-function evidence now counts indexed matches without allocating the
+full cross product. A 400-by-400 regression retains five examples with an exact
+160,000 total. MOSS behavior is unchanged; real-data validation remains needed.

@@ -6,7 +6,9 @@ It does not decide whether someone copied code.
 
 **Python 3.11+ · no runtime dependencies · Python, Java, C, and C++**
 
-Version 0.4 adds optional MOSS staging/result import and isolated-function supporting evidence. Version 0.3 separates broad retrieval leads from binding-supported review
+Version 0.5 adds development-only threshold sweeps, source-family split checks,
+and bounded duplicate-function evidence. It includes optional MOSS staging/result
+import and isolated-function supporting evidence. Version 0.3 separates broad retrieval leads from binding-supported review
 flags. It retains semantically edited-copy candidates without silently
 promoting weak evidence, reports declined analyses, scopes allowed templates
 by task, and evaluates retrieval separately from strict flags. These changes
@@ -196,7 +198,8 @@ examples/demo/  synthetic source fixtures
 docs/           input format and review methodology
 ```
 
-Workhorse makes no network requests and does not fetch platform submissions.
+The core comparison engine makes no network requests and does not fetch platform submissions.
+The optional MOSS submit command contacts Stanford only when explicitly executed.
 Only import source you are authorized to review. Raw exports and generated
 reports are ignored by Git; reports contain identifiers and source excerpts.
 
@@ -222,3 +225,9 @@ separate from the normal report and packet. Similarity tools can share biases;
 combined scores are not independent votes or plagiarism probabilities. This
 release is tested locally with synthetic fixtures and a mocked MOSS client,
 not live MOSS submissions or a real labeled contest population.
+
+
+Use `workhorse-calibrate` to compare a bounded threshold grid on development
+cases without scoring holdout outcomes or changing defaults. See
+[calibration and split integrity](docs/evaluation.md). Function evidence counts
+all duplicate matches while materializing at most five excerpts per pair.
