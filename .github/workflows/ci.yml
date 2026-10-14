@@ -25,6 +25,7 @@ jobs:
       - run: workhorse validate examples/demo/manifest.json
       - run: workhorse review examples/demo/manifest.json --output reports/demo
       - run: workhorse evaluate examples/benchmark/cases.json --output reports/demo/evaluation.json
+      - run: workhorse-calibrate examples/benchmark/cases.json --thresholds 0.35 0.5 0.65 0.8 --output reports/demo/calibration.json
       - uses: actions/upload-artifact@v4
         with:
           name: synthetic-demo-${{ matrix.python }}
