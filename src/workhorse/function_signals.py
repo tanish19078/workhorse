@@ -84,18 +84,20 @@ def analyze(manifest, report_path, baseline=None, min_tokens=30):
         right_index = {}
         for fragment in fragments(right):
             right_index.setdefault(fragment["tokens"], []).append(fragment)
-        matches = []
+        matches, total_matches = [], 0
         for a in fragments(left):
             if a["tokens"] in allowed:
                 continue
-            for b in right_index.get(a["tokens"], []):
+            compatible = right_index.get(a["tokens"], [])
+            total_matches += len(compatible)
+            for b in compatible[:max(0, 5 - len(matches))]:
                 matches.append({"left": {k: v for k, v in a.items() if k != "tokens"},
                                 "right": {k: v for k, v in b.items() if k != "tokens"},
                                 "normalized_tokens": len(a["tokens"])})
         if matches:
             pairs.append({"left": left.id, "right": right.id,
                           "category": candidate.get("category", "review_flag"),
-                          "matches": matches[:5], "total_matches": len(matches)})
+                          "matches": matches, "total_matches": total_matches})
     return {"schema_version": 1, "tool_version": __version__, "python_version": platform.python_version(),
             "baseline_sources": baseline_sources, "report_sha256": hashlib.sha256(Path(report_path).read_bytes()).hexdigest(),
             "min_tokens": min_tokens, "pairs": pairs, "declined_functions": declines,

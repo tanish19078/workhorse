@@ -2,13 +2,14 @@
 
 from dataclasses import replace
 import json
+import hashlib
 from pathlib import Path
 
 from .compare import Options, compare
 from .imports import Submission
 
 
-def evaluate(path: Path, options: Options = Options()) -> dict:
+def load_cases(path: Path) -> list[dict]:
     if path.stat().st_size > 10 * 1024 * 1024:
         raise ValueError("Benchmark exceeds 10 MiB")
     document = json.loads(path.read_text(encoding="utf-8"))
@@ -19,6 +20,8 @@ def evaluate(path: Path, options: Options = Options()) -> dict:
         raise ValueError("Benchmark has no cases")
     seen = set()
     task_splits = {}
+    family_splits = {}
+    source_splits = {}
     for case in cases:
         if not isinstance(case, dict) or any(not isinstance(case.get(k), str) or not case[k].strip()
             for k in ("id", "task", "language", "left", "right", "label", "split", "provenance")):
@@ -35,9 +38,31 @@ def evaluate(path: Path, options: Options = Options()) -> dict:
         existing = task_splits.setdefault(case["task"], case["split"])
         if existing != case["split"]:
             raise ValueError("Task appears in both development and holdout splits")
+        family = case.get("source_family")
+        if family is not None:
+            if not isinstance(family, str) or not family.strip():
+                raise ValueError("Source family must be a nonempty string")
+            if family_splits.setdefault(family.strip(), case["split"]) != case["split"]:
+                raise ValueError("Source family crosses development and holdout splits")
+        for side in ("left", "right"):
+            source_hash = hashlib.sha256(case[side].replace("\r\n", "\n").strip().encode()).hexdigest()
+            key = (case["language"], source_hash)
+            if source_splits.setdefault(key, case["split"]) != case["split"]:
+                raise ValueError("Identical source crosses development and holdout splits")
+    return cases
+
+
+def evaluate(path: Path, options: Options = Options(), *,
+             splits=("development", "holdout"), normalizations=("legacy", "relationships")) -> dict:
+    options.validate()
+    if not splits or any(s not in ("development", "holdout") for s in splits) or len(set(splits)) != len(splits):
+        raise ValueError("Select distinct development/holdout splits")
+    if not normalizations or any(n not in ("legacy", "relationships") for n in normalizations) or len(set(normalizations)) != len(normalizations):
+        raise ValueError("Select distinct supported evaluation normalizations")
+    cases = load_cases(path)
     results = []
-    for normalization in ("legacy", "relationships"):
-        for split in ("development", "holdout"):
+    for normalization in normalizations:
+        for split in splits:
             counts = {"true_positive": 0, "false_positive": 0, "true_negative": 0,
                       "false_negative": 0, "insufficient_cases": 0, "insufficient_flagged": 0}
             counts.update(ambiguous_cases=0, ambiguous_flagged=0)
@@ -83,7 +108,8 @@ def evaluate(path: Path, options: Options = Options()) -> dict:
                             "recall": tp / (tp + fn) if tp + fn else None,
                             "false_positive_rate": fp / (fp + tn) if fp + tn else None,
                             "cases": details})
-    return {"schema_version": 1, "options": options.__dict__, "results": results,
+    return {"schema_version": 1, "benchmark_sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
+            "options": options.__dict__, "results": results,
             "interpretation": "Labels describe known construction provenance, not disciplinary findings. "
                               "Synthetic results do not estimate real-world accuracy. Null metrics have no denominator. "
                               "The published fixtures have been inspected and are regression diagnostics, not a fresh blind holdout. "
