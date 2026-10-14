@@ -67,3 +67,26 @@ class FunctionSignalTests(unittest.TestCase):
         self.assertNotEqual(a[0]['tokens'],b[0]['tokens'])
         self.assertIn('custom_api',a[0]['external_names'])
         self.assertFalse(functions('def tiny(x):\n    return x\n')[0])
+
+    def test_duplicate_match_count_does_not_materialize_cartesian_product(self):
+        from unittest.mock import patch
+        import tracemalloc
+        with tempfile.TemporaryDirectory() as temp:
+            root=Path(temp)
+            for name in ('a','b'):
+                (root/(name+'.py')).write_text(SOURCE)
+            manifest=root/'manifest.json'
+            manifest.write_text(json.dumps([{'id':x,'author':x,'task':'q','language':'python','path':x+'.py'} for x in ('a','b')]))
+            report=root/'report.json';report.write_text(json.dumps(compare(load_manifest(manifest))))
+            fragment=functions(SOURCE)[0][0]
+            with patch('workhorse.function_signals.functions',return_value=([fragment]*400,[])):
+                tracemalloc.start()
+                try:
+                    result=analyze(manifest,report)
+                    _,peak=tracemalloc.get_traced_memory()
+                finally:
+                    tracemalloc.stop()
+            self.assertEqual(result['pairs'][0]['total_matches'],160000)
+            self.assertEqual(len(result['pairs'][0]['matches']),5)
+            # Report loading itself reserves a bounded 50 MiB read buffer.
+            self.assertLess(peak,80*1024*1024)

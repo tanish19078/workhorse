@@ -32,3 +32,23 @@ class EvaluationTests(unittest.TestCase):
         self.assertTrue(case["retrieved"])
         self.assertEqual(case["retrieval_category"], "broad_candidate")
         self.assertGreater(row["retrieval_recall"], row["recall"])
+
+    def test_identical_source_cannot_cross_tasks_to_hide_leakage(self):
+        with tempfile.TemporaryDirectory() as temp:
+            case = dict(id='a', task='one', language='python', left='x=1', right='x=2',
+                        label='shared_origin', split='development', provenance='synthetic')
+            path = Path(temp)/'cases.json'
+            path.write_text(json.dumps({'schema_version':1, 'cases':[case,
+                {**case,'id':'b','task':'two','split':'holdout','left':' x=1\r\n','right':'y=4'}]}))
+            with self.assertRaisesRegex(ValueError,'Identical source'):
+                evaluate(path)
+
+    def test_declared_source_family_cannot_cross_splits(self):
+        with tempfile.TemporaryDirectory() as temp:
+            case = dict(id='a',task='one',language='python',left='x=1',right='x=2',
+                        label='shared_origin',split='development',provenance='synthetic',source_family='ancestor')
+            path=Path(temp)/'cases.json'
+            path.write_text(json.dumps({'schema_version':1,'cases':[case,
+                {**case,'id':'b','task':'two','split':'holdout','left':'z=3','right':'w=4'}]}))
+            with self.assertRaisesRegex(ValueError,'Source family'):
+                evaluate(path)
