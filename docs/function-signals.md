@@ -18,7 +18,9 @@ hash, baseline provenance, tool/Python versions and external names.
 This is a sidecar JSON report, not a new similarity score. Original strict/broad
 categories are retained; no pair is promoted. The normal report and review
 packet formats are unchanged. Each pair displays up to five matching function
-combinations with a total count. This adds localized evidence; it does not
+combinations with a total count. Version 0.5 computes that count from indexed
+bucket sizes without allocating every duplicate combination. A regression
+checks 160,000 combinations while retaining only five excerpts. This adds localized evidence; it does not
 increase the retrieval or strict-flag counts reported by evaluation.
 
 Decorated functions, default arguments, annotations, generic type parameters,
