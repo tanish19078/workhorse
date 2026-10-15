@@ -103,3 +103,16 @@ tradeoffs without automatically changing production thresholds.
 Duplicate-function evidence now counts indexed matches without allocating the
 full cross product. A 400-by-400 regression retains five examples with an exact
 160,000 total. MOSS behavior is unchanged; real-data validation remains needed.
+
+## Version 0.6 iteration
+
+Implemented bounded chunked reads, immutable evaluation snapshots, exclusive
+persistent MOSS attempt claims, and optional function evidence in the HTML review.
+Regressions cover concurrent attempts, uncertain submission outcomes, file changes
+during scoring, HTML escaping, provenance mismatches and bounded allocations.
+Installed entry points are exercised in CI. Defaults and synthetic accuracy claims
+are unchanged; no live MOSS submission was made.
+
+Next accuracy work requires a separately collected authorized labeled corpus,
+problem/source-family separation, review of canonical-algorithm false positives,
+and a frozen threshold selected only on development cases before blind testing.

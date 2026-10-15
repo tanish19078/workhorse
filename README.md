@@ -6,6 +6,8 @@ It does not decide whether someone copied code.
 
 **Python 3.11+ · no runtime dependencies · Python, Java, C, and C++**
 
+Version 0.6 adds a combined function-evidence HTML view, snapshot-consistent
+calibration, bounded report reads and persistent MOSS attempt guards.
 Version 0.5 adds development-only threshold sweeps, source-family split checks,
 and bounded duplicate-function evidence. It includes optional MOSS staging/result
 import and isolated-function supporting evidence. Version 0.3 separates broad retrieval leads from binding-supported review
@@ -231,3 +233,12 @@ Use `workhorse-calibrate` to compare a bounded threshold grid on development
 cases without scoring holdout outcomes or changing defaults. See
 [calibration and split integrity](docs/evaluation.md). Function evidence counts
 all duplicate matches while materializing at most five excerpts per pair.
+
+Render function evidence beside the original matched spans:
+
+```bash
+workhorse-functions examples/demo/manifest.json reports/demo/report.json \
+  --output reports/demo/functions.json --html reports/demo/functions.html
+```
+
+The combined view retains strict/broad categories and does not change scores.
