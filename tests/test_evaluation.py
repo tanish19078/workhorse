@@ -52,3 +52,17 @@ class EvaluationTests(unittest.TestCase):
                 {**case,'id':'b','task':'two','split':'holdout','left':'z=3','right':'w=4'}]}))
             with self.assertRaisesRegex(ValueError,'Source family'):
                 evaluate(path)
+
+    def test_evaluation_digest_uses_scored_bytes_after_input_changes(self):
+        import hashlib
+        from unittest.mock import patch
+        from workhorse.compare import compare
+        original=(Path(__file__).resolve().parents[1]/'examples/benchmark/cases.json').read_bytes()
+        with tempfile.TemporaryDirectory() as temp:
+            path=Path(temp)/'cases.json';path.write_bytes(original)
+            def change_during_comparison(*args,**kwargs):
+                path.write_bytes(b'changed after snapshot')
+                return compare(*args,**kwargs)
+            with patch('workhorse.evaluation.compare',side_effect=change_during_comparison):
+                result=evaluate(path)
+            self.assertEqual(result['benchmark_sha256'],hashlib.sha256(original).hexdigest())

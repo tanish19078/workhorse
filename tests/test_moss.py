@@ -140,3 +140,59 @@ class MossTests(unittest.TestCase):
         self.stage()
         self.html.write_text((HEADER+ROW).replace('</td>','').replace('</tr>',''))
         self.assertEqual(len(import_index(self.plan,'g0001',self.html,URL)['pairs']),1)
+
+    def test_concurrent_attempt_invokes_client_only_once(self):
+        from concurrent.futures import ThreadPoolExecutor, wait, FIRST_COMPLETED
+        from threading import Barrier, Event
+        from workhorse.moss import command, execute_submission
+        self.stage()
+        client=self.root/'moss.pl';client.write_text('# user client')
+        barrier=Barrier(2)
+        client_started,release=Event(),Event()
+        def align(*args):
+            result=command(*args)
+            barrier.wait(timeout=5)
+            return result
+        def blocked_client(*args,**kwargs):
+            client_started.set()
+            if not release.wait(timeout=5):
+                raise RuntimeError('test did not release client')
+            return subprocess.CompletedProcess([],0,URL)
+        with patch('workhorse.moss.command',side_effect=align), patch('workhorse.moss.subprocess.run',side_effect=blocked_client) as run:
+            with ThreadPoolExecutor(max_workers=2) as pool:
+                futures=[pool.submit(execute_submission,self.plan,'g0001',client) for _ in range(2)]
+                try:
+                    self.assertTrue(client_started.wait(timeout=5))
+                    done,_=wait(futures,timeout=5,return_when=FIRST_COMPLETED)
+                    self.assertEqual(len(done),1)
+                finally:
+                    release.set()
+                results=[]
+                for future in futures:
+                    try: results.append(future.result(timeout=5))
+                    except ValueError as exc: results.append(str(exc))
+            self.assertEqual(run.call_count,1)
+            self.assertIn(URL,results)
+            self.assertTrue(any('attempt' in value for value in results))
+
+    def test_uncertain_attempt_prevents_retry_after_timeout(self):
+        from workhorse.moss import execute_submission
+        self.stage()
+        client=self.root/'moss.pl';client.write_text('# user client')
+        with patch('workhorse.moss.subprocess.run',side_effect=subprocess.TimeoutExpired('perl',120)) as run:
+            with self.assertRaises(subprocess.TimeoutExpired):
+                execute_submission(self.plan,'g0001',client)
+            with self.assertRaisesRegex(ValueError,'uncertain'):
+                execute_submission(self.plan,'g0001',client)
+            self.assertEqual(run.call_count,1)
+            self.assertTrue((self.output/'g0001/submission-attempt.json').exists())
+            self.assertFalse((self.output/'g0001/submission.json').exists())
+
+    def test_missing_result_url_keeps_attempt_claim(self):
+        from workhorse.moss import execute_submission
+        self.stage()
+        client=self.root/'moss.pl';client.write_text('# user client')
+        with patch('workhorse.moss.subprocess.run',return_value=subprocess.CompletedProcess([],0,'no result')):
+            with self.assertRaisesRegex(ValueError,'no result URL'):
+                execute_submission(self.plan,'g0001',client)
+            self.assertTrue((self.output/'g0001/submission-attempt.json').exists())

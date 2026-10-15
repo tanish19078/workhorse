@@ -88,5 +88,4 @@ class FunctionSignalTests(unittest.TestCase):
                     tracemalloc.stop()
             self.assertEqual(result['pairs'][0]['total_matches'],160000)
             self.assertEqual(len(result['pairs'][0]['matches']),5)
-            # Report loading itself reserves a bounded 50 MiB read buffer.
-            self.assertLess(peak,80*1024*1024)
+            self.assertLess(peak,8*1024*1024)

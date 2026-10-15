@@ -52,3 +52,21 @@ class CalibrationTests(unittest.TestCase):
             with self.assertRaises(SystemExit):
                 main([str(BENCHMARK),'--thresholds','0.5','--output',str(path)])
             self.assertEqual(path.read_text(),'existing')
+
+    def test_all_thresholds_use_initial_bytes_when_file_changes(self):
+        import hashlib
+        from workhorse.evaluation import BenchmarkSnapshot
+        original=BENCHMARK.read_bytes()
+        with tempfile.TemporaryDirectory() as temp:
+            path=Path(temp)/'cases.json';path.write_bytes(original)
+            calls=[]
+            def change_after_first(snapshot,*args,**kwargs):
+                self.assertIsInstance(snapshot,BenchmarkSnapshot)
+                calls.append(snapshot)
+                path.write_text('{"broken":true}')
+                return evaluate(snapshot,*args,**kwargs)
+            with patch('workhorse.calibration.evaluate',side_effect=change_after_first):
+                result=sweep(path,[0.5,0.75])
+            self.assertIs(calls[0],calls[1])
+            self.assertEqual(result['benchmark_sha256'],hashlib.sha256(original).hexdigest())
+            self.assertEqual(len(result['rows']),2)
