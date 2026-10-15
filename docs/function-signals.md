@@ -3,7 +3,7 @@
 ```bash
 PYTHONPATH=src python -m workhorse.function_signals data/export/manifest.json \
   reports/export/report.json --baseline data/templates/manifest.json \
-  --output reports/function-signals.json
+  --output reports/function-signals.json --html reports/function-review.html
 ```
 
 This optional local script examines already retrieved Python pairs. It extracts
@@ -41,3 +41,16 @@ Regressions cover helper insertion, consistent renaming, changed variable
 relationships, preserved external API names, contextual-function declines,
 source provenance and permitted complete functions. These are correctness
 checks, not an estimated false-positive rate on real submissions.
+
+## Combined review page (0.6)
+
+The optional `--html` output places function excerpts beside the original span
+evidence, including source lines, external names, exclusions and unchanged pair
+categories. Each excerpt is capped at 6,000 characters and visibly marked when
+truncated. JSON now contains these source excerpts too; keep both outputs private.
+The report is read once: its exact bytes supply the provenance hash and its parsed
+snapshot supplies the rendered page. A canonical content digest binds the evidence
+to that report; mismatched pairs and categories are rejected. These hashes detect
+accidental mismatch, not malicious forgery. Output paths must be distinct and new.
+The command leaves the original report untouched; packets do not include the new
+sidecar automatically. Older sidecars must be regenerated for the combined view.

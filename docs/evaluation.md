@@ -94,3 +94,11 @@ for older inputs but recommended for every case, shared across derived sources
 and renamed or edited variants. Exact-source checks alone cannot discover all
 related sources. Baseline template text is not automatically treated as a
 solution-family identifier; record known provenance explicitly.
+
+## Snapshot provenance (0.6)
+
+Evaluation reads at most 10 MiB into one immutable benchmark snapshot. Every
+threshold in a sweep uses those same bytes, and the published SHA-256 identifies
+exactly those bytes. Editing the input file during scoring cannot mix different
+benchmark versions or change the recorded digest. A snapshot is reproducible
+input provenance, not a validation of labels or independence.

@@ -56,9 +56,14 @@ PYTHONPATH=src python -m workhorse.moss submit data/moss-batch/plan.json \
 This command transmits that group's sources and applicable baselines. There
 is no automatic submission loop or retry. A successful response saves a local
 `submission.json` receipt containing the result URL, plan/client hashes and
-arguments. A second execution with that receipt present is rejected. A timeout
-or failure does not prove that the server received nothing; inspect before
-retrying. The wrapper's timeout is 120 seconds and does not manage a global
+arguments. Before invoking the client, an exclusive `submission-attempt.json` claim is
+created and flushed to disk. Concurrent executions of that same staged group
+cannot both invoke the client. The claim persists after success, timeout,
+interruption or an unrecognized response; subsequent execution is rejected.
+A timeout or failure does not prove that the server received nothing. Inspect
+the claim, receipt and service outcome before deciding on any manual recovery.
+There is no automatic claim reset. This is a local guard for one staging folder,
+not an account-wide lock: separately prepared copies can still submit twice. The wrapper's timeout is 120 seconds and does not manage a global
 account quota. CI never submits to MOSS.
 
 ## Import a saved index locally
