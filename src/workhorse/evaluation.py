@@ -1,18 +1,36 @@
 """Evaluate review flags against explicit labels without treating them as verdicts."""
 
-from dataclasses import replace
+from dataclasses import dataclass, replace
 import json
 import hashlib
 from pathlib import Path
 
 from .compare import Options, compare
 from .imports import Submission
+from .io_utils import read_bounded
 
 
-def load_cases(path: Path) -> list[dict]:
-    if path.stat().st_size > 10 * 1024 * 1024:
-        raise ValueError("Benchmark exceeds 10 MiB")
-    document = json.loads(path.read_text(encoding="utf-8"))
+@dataclass(frozen=True)
+class BenchmarkSnapshot:
+    """Immutable bytes used for both scoring and reported provenance."""
+    raw: bytes
+
+    def __post_init__(self):
+        if not isinstance(self.raw, bytes) or len(self.raw) > 10 * 1024 * 1024:
+            raise ValueError("Benchmark snapshot must contain at most 10 MiB of bytes")
+
+    @classmethod
+    def read(cls, path):
+        return cls(read_bounded(Path(path), 10 * 1024 * 1024, "Benchmark exceeds 10 MiB"))
+
+    @property
+    def sha256(self):
+        return hashlib.sha256(self.raw).hexdigest()
+
+
+def load_cases(source) -> list[dict]:
+    snapshot = source if isinstance(source, BenchmarkSnapshot) else BenchmarkSnapshot.read(source)
+    document = json.loads(snapshot.raw)
     if not isinstance(document, dict) or document.get("schema_version") != 1 or not isinstance(document.get("cases"), list):
         raise ValueError("Expected a version 1 labeled benchmark")
     cases = document["cases"]
@@ -59,7 +77,8 @@ def evaluate(path: Path, options: Options = Options(), *,
         raise ValueError("Select distinct development/holdout splits")
     if not normalizations or any(n not in ("legacy", "relationships") for n in normalizations) or len(set(normalizations)) != len(normalizations):
         raise ValueError("Select distinct supported evaluation normalizations")
-    cases = load_cases(path)
+    snapshot = path if isinstance(path, BenchmarkSnapshot) else BenchmarkSnapshot.read(path)
+    cases = load_cases(snapshot)
     results = []
     for normalization in normalizations:
         for split in splits:
@@ -108,7 +127,7 @@ def evaluate(path: Path, options: Options = Options(), *,
                             "recall": tp / (tp + fn) if tp + fn else None,
                             "false_positive_rate": fp / (fp + tn) if fp + tn else None,
                             "cases": details})
-    return {"schema_version": 1, "benchmark_sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
+    return {"schema_version": 1, "benchmark_sha256": snapshot.sha256,
             "options": options.__dict__, "results": results,
             "interpretation": "Labels describe known construction provenance, not disciplinary findings. "
                               "Synthetic results do not estimate real-world accuracy. Null metrics have no denominator. "

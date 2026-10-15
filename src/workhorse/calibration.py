@@ -7,7 +7,7 @@ from pathlib import Path
 
 from . import __version__
 from .compare import Options
-from .evaluation import evaluate
+from .evaluation import BenchmarkSnapshot, evaluate
 
 
 def sweep(path, thresholds, options=Options(), max_false_positives=0):
@@ -20,9 +20,10 @@ def sweep(path, thresholds, options=Options(), max_false_positives=0):
     if type(max_false_positives) is not int or max_false_positives < 0:
         raise ValueError("False-positive budget must be a nonnegative integer")
     options.validate()
+    snapshot = BenchmarkSnapshot.read(path)
     rows = []
     for threshold in sorted(thresholds):
-        evaluation = evaluate(Path(path), replace(options, threshold=threshold),
+        evaluation = evaluate(snapshot, replace(options, threshold=threshold),
                               splits=("development",), normalizations=("relationships",))
         row = evaluation["results"][0]
         counts = row["counts"]

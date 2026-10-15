@@ -8,25 +8,27 @@ from pathlib import Path
 import tempfile
 import math
 import re
+from .io_utils import read_bounded
 
 
 STATES = ("unreviewed", "explained", "investigate")
 MAX_REPORT_BYTES = 50 * 1024 * 1024
 
 
-def read_json(path: Path) -> dict:
-    with path.open("rb") as handle:
-        data = handle.read(MAX_REPORT_BYTES + 1)
-    if len(data) > MAX_REPORT_BYTES:
-        raise ValueError("Review data exceeds 50 MiB")
+def read_json_snapshot(path: Path):
+    data = read_bounded(path, MAX_REPORT_BYTES, "Review data exceeds 50 MiB")
     document = json.loads(data)
     if not isinstance(document, dict) or document.get("schema_version") != 1:
         raise ValueError("Expected a version 1 Workhorse document")
-    return document
+    return document, hashlib.sha256(data).hexdigest()
 
 
-def load_report(path: Path) -> dict:
-    report = read_json(path)
+def read_json(path: Path) -> dict:
+    return read_json_snapshot(path)[0]
+
+
+def load_report(path: Path, *, with_digest=False):
+    report, digest = read_json_snapshot(path)
     if not isinstance(report.get("submissions"), list) or not isinstance(report.get("findings"), list):
         raise ValueError("Invalid Workhorse report")
     ids = set()
@@ -123,7 +125,11 @@ def load_report(path: Path) -> dict:
                ("submissions", "short_sources", "excluded_common_fingerprints",
                 "excluded_crowded_fingerprints", "candidate_pairs")):
             raise ValueError("Invalid report group counts")
-    return report
+    return (report, digest) if with_digest else report
+
+
+def document_digest(document):
+    return hashlib.sha256(json.dumps(document, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode()).hexdigest()
 
 
 def pair_key(left: dict, right: dict) -> str:
