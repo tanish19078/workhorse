@@ -6,6 +6,8 @@ import argparse
 import hashlib
 from html.parser import HTMLParser
 import json
+import os
+from datetime import datetime, timezone
 from pathlib import Path
 import re
 import shlex
@@ -201,6 +203,39 @@ def import_index(plan_path, group_id, html_path, url):
             "An empty result does not prove independent authorship. Inspect highlighted code and templates."}
 
 
+def execute_submission(plan_path, group_id, client):
+    """Claim a batch atomically before invoking the client; uncertainty blocks retry."""
+    argv, folder = command(plan_path, group_id, client)
+    receipt = folder / "submission.json"
+    if receipt.exists():
+        raise ValueError("This batch already has a submission receipt; do not submit it twice")
+    provenance = {"plan_sha256": digest(Path(plan_path).read_bytes()),
+                  "client_sha256": digest(Path(argv[1]).read_bytes()), "argv": argv,
+                  "attempted_at": datetime.now(timezone.utc).isoformat()}
+    attempt = folder / "submission-attempt.json"
+    try:
+        handle = attempt.open("x", encoding="utf-8")
+    except FileExistsError as exc:
+        raise ValueError("Batch has a pending or uncertain submission attempt; inspect it before any retry") from exc
+    with handle:
+        json.dump({"state": "reserved", **provenance}, handle, indent=2)
+        handle.write("\n")
+        handle.flush()
+        os.fsync(handle.fileno())
+    # Keep the claim after every outcome, including timeout, interruption and
+    # missing URL: the service may have received code even without a receipt.
+    completed = subprocess.run(argv, cwd=folder, capture_output=True, text=True,
+                               timeout=120, check=True)
+    urls = re.findall(r"https?://moss\.stanford\.edu/results/[^\s<>]+", completed.stdout)
+    if not urls:
+        raise ValueError("MOSS client returned no result URL; attempt retained for inspection")
+    url = result_url(urls[-1])
+    with receipt.open("x", encoding="utf-8") as handle:
+        json.dump({"result_url": url, **provenance}, handle, indent=2)
+        handle.write("\n")
+    return url
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     sub = parser.add_subparsers(dest="action", required=True)
@@ -230,21 +265,7 @@ def main(argv=None):
             print("Command:", shlex.join(argv))
             print("Execution sends source code to Stanford; anyone with the result URL can view it.")
             if args.execute:
-                receipt = folder / "submission.json"
-                if receipt.exists():
-                    raise ValueError("This batch already has a submission receipt; do not submit it twice")
-                # Never run a source file, shell, automatic retries, or every group in a loop.
-                completed = subprocess.run(argv, cwd=folder, capture_output=True, text=True,
-                                           timeout=120, check=True)
-                urls = re.findall(r"https?://moss\.stanford\.edu/results/[^\s<>]+", completed.stdout)
-                if not urls:
-                    raise ValueError("MOSS client returned no result URL; do not retry blindly")
-                url = result_url(urls[-1])
-                with receipt.open("x") as handle:
-                    json.dump({"result_url": url, "plan_sha256": digest(args.plan.read_bytes()),
-                               "client_sha256": digest(Path(argv[1]).read_bytes()), "argv": argv}, handle, indent=2)
-                    handle.write("\n")
-                print(url)
+                print(execute_submission(args.plan, args.group, args.client))
             else:
                 print("Dry run. Add --execute only to send this batch's sources to Stanford.")
         else:
