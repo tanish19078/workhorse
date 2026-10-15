@@ -6,6 +6,7 @@ import json
 import os
 import tempfile
 from urllib.parse import urlsplit
+from .reviews import document_digest
 
 
 def _link(item):
@@ -17,9 +18,44 @@ def _link(item):
     return f'<a href="{escape(url, quote=True)}" rel="noreferrer">{label}</a>'
 
 
-def render_html(report: dict) -> str:
+def _function_block(pair):
+    if pair is None:
+        return '<p class="muted">No eligible exact function match was reported for this pair.</p>'
+    blocks = []
+    for match in pair["matches"]:
+        columns = []
+        for side in ("left", "right"):
+            fragment = match[side]
+            note = '<p class="muted">Function excerpt truncated to 6,000 characters.</p>' if fragment.get("excerpt_truncated") else ''
+            external = ", ".join(fragment["external_names"]) or "none recorded"
+            columns.append(f'<div><p><strong>{escape(fragment["name"])}</strong> · '
+                           f'Lines {fragment["start_line"]}–{fragment["end_line"]}</p>'
+                           f'<p class="muted">External names: {escape(external)}</p>'
+                           f'<pre>{escape(fragment.get("excerpt", "Excerpt unavailable in this older sidecar."))}</pre>{note}</div>')
+        blocks.append(f'<details><summary>{match["normalized_tokens"]} identical normalized function tokens</summary>'
+                      f'<div class="columns">{"".join(columns)}</div></details>')
+    return (f'<h3>Function supporting evidence</h3><p>{pair["total_matches"]} matching function combinations; '
+            f'showing {len(pair["matches"])}. Original pair category retained.</p>' + "".join(blocks))
+
+
+def render_html(report: dict, function_evidence=None) -> str:
     items = {s["id"]: s for s in report["submissions"]}
     cards = []
+    function_pairs = {}
+    function_notice = ""
+    if function_evidence is not None:
+        if function_evidence.get("report_content_sha256") != document_digest(report):
+            raise ValueError("Function evidence provenance does not match the review")
+        candidates = {(f["left"], f["right"]): f for f in report["findings"] + report.get("additional_candidates", [])}
+        for pair in function_evidence["pairs"]:
+            key = pair["left"], pair["right"]
+            if key not in candidates or key in function_pairs or pair["category"] != candidates[key].get("category", "review_flag"):
+                raise ValueError("Function evidence pair/category does not match the review")
+            function_pairs[key] = pair
+        notes = "".join('<li>' + escape(n['id'] + ': ' + n['reason']) + '</li>' for n in function_evidence['declined_functions'])
+        function_notice = ('<details open><summary>Function evidence scope and exclusions</summary><p>' +
+                           escape(function_evidence['interpretation']) + '</p><ul>' + notes + '</ul></details>')
+
     for finding in report["findings"] + report.get("additional_candidates", []):
         left, right = items[finding["left"]], items[finding["right"]]
         evidence = []
@@ -36,6 +72,7 @@ def render_html(report: dict) -> str:
                                f'<pre>{escape(text)}</pre>{note}</div>')
             evidence.append(f'<details open><summary>{span["tokens"]} matching normalized tokens</summary>'
                             f'<div class="columns">{"".join(columns)}</div></details>')
+        function_content = _function_block(function_pairs.get((finding["left"], finding["right"]))) if function_evidence is not None else ""
         search = escape(" ".join(str(x) for x in (left["author"], right["author"], left["id"],
                                                  right["id"], finding["task"])).lower(), quote=True)
         signals = finding.get("signals", {})
@@ -52,6 +89,7 @@ def render_html(report: dict) -> str:
 <p class="metrics">Containment {finding['containment']:.1%} · Jaccard {finding['jaccard']:.1%} · {finding['shared_fingerprints']} shared fingerprints</p>
 {diagnostics}<ul>{cautions}</ul>
 <p>Submitted: {escape(left.get('submitted_at') or 'unknown')} / {escape(right.get('submitted_at') or 'unknown')}</p>
+{function_content}
 {''.join(evidence)}
 <p class="muted">Representative spans can include adjacent template code. Compare the original files and alternative explanations before drawing conclusions.</p>
 </article>''')
@@ -69,6 +107,7 @@ def render_html(report: dict) -> str:
 <p class="muted">WORKHORSE / LOCAL REVIEW</p><h1>Source similarity review</h1>
 <p class="notice">{escape(report['interpretation'])}</p>
 <div class="stats"><div><strong>{summary['submissions']}</strong>submissions</div><div><strong>{summary['groups']}</strong>task/language groups</div><div><strong>{summary['flagged_pairs']}</strong>review flags</div><div><strong>{summary.get('additional_candidates', 0)}</strong>broad-only leads</div></div>
+{function_notice}
 <label for="search">Filter by submission, author, or task</label><input id="search" type="search" placeholder="Search this report" autocomplete="off">
 <p id="visible" aria-live="polite"></p>{content}
 <h2>Coverage and exclusions</h2><div class="tablewrap"><table><thead><tr><th>Task</th><th>Language</th><th>Sources</th><th>Short sources</th><th>Common hashes</th><th>Crowded hashes</th><th>Candidates</th></tr></thead><tbody>{''.join(rows)}</tbody></table></div>

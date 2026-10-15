@@ -13,7 +13,7 @@ from pathlib import Path
 import symtable
 
 from .imports import load_manifest
-from .reviews import load_report
+from .reviews import document_digest, load_report
 from .tokens import normalize
 
 
@@ -51,9 +51,9 @@ def functions(source, min_tokens=30):
     return accepted, declined
 
 
-def analyze(manifest, report_path, baseline=None, min_tokens=30):
+def analyze(manifest, report_path, baseline=None, min_tokens=30, *, include_report=False):
     submissions = {s.id: s for s in load_manifest(Path(manifest))}
-    report = load_report(Path(report_path))
+    report, report_digest = load_report(Path(report_path), with_digest=True)
     for metadata in report["submissions"]:
         item = submissions.get(metadata["id"])
         if (item is None or hashlib.sha256(item.source.encode()).hexdigest() != metadata["sha256"]
@@ -67,6 +67,11 @@ def analyze(manifest, report_path, baseline=None, min_tokens=30):
             fragments, _ = functions(base.source, min_tokens)
             excluded.setdefault(base.task, set()).update(f["tokens"] for f in fragments)
     cache, declines, pairs = {}, [], []
+    def excerpt(fragment, item):
+        text = "\n".join(item.source.splitlines()[fragment["start_line"] - 1:fragment["end_line"]])
+        return {**{k: v for k, v in fragment.items() if k != "tokens"},
+                "excerpt": text[:6000], "excerpt_truncated": len(text) > 6000}
+
     def fragments(item):
         if item.id not in cache:
             try:
@@ -91,20 +96,23 @@ def analyze(manifest, report_path, baseline=None, min_tokens=30):
             compatible = right_index.get(a["tokens"], [])
             total_matches += len(compatible)
             for b in compatible[:max(0, 5 - len(matches))]:
-                matches.append({"left": {k: v for k, v in a.items() if k != "tokens"},
-                                "right": {k: v for k, v in b.items() if k != "tokens"},
+                matches.append({"left": excerpt(a, left),
+                                "right": excerpt(b, right),
                                 "normalized_tokens": len(a["tokens"])})
         if matches:
             pairs.append({"left": left.id, "right": right.id,
                           "category": candidate.get("category", "review_flag"),
                           "matches": matches, "total_matches": total_matches})
-    return {"schema_version": 1, "tool_version": __version__, "python_version": platform.python_version(),
-            "baseline_sources": baseline_sources, "report_sha256": hashlib.sha256(Path(report_path).read_bytes()).hexdigest(),
+    result = {"schema_version": 1, "tool_version": __version__, "python_version": platform.python_version(),
+            "baseline_sources": baseline_sources, "report_sha256": report_digest,
+            "report_content_sha256": document_digest(report),
             "min_tokens": min_tokens, "pairs": pairs, "declined_functions": declines,
             "interpretation": "Exact binding-normalized function excerpts; original pair categories are unchanged. "
             "Canonical algorithms can match independently. External names and surrounding module context still require review. "
             "Only top-level Python functions in already retrieved pairs are inspected; absence is not an assessment. "
             "Allowed complete functions are excluded only when --baseline is supplied; partial boilerplate is not removed."}
+
+    return (result, report) if include_report else result
 
 
 def main(argv=None):
@@ -114,13 +122,25 @@ def main(argv=None):
     parser.add_argument("--baseline", type=Path)
     parser.add_argument("--min-tokens", type=int, default=30)
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--html", type=Path, help="Write a combined review with function excerpts")
     args = parser.parse_args(argv)
     try:
-        result = analyze(args.manifest, args.report, args.baseline, args.min_tokens)
+        outputs = [args.output] + ([args.html] if args.html else [])
+        if len({p.resolve() for p in outputs}) != len(outputs) or any(p.exists() for p in outputs):
+            raise ValueError("Output paths must be distinct and must not already exist")
+        result, report = analyze(args.manifest, args.report, args.baseline, args.min_tokens, include_report=True)
+        html = None
+        if args.html:
+            from .report import render_html
+            html = render_html(report, function_evidence=result)
         args.output.parent.mkdir(parents=True, exist_ok=True)
         with args.output.open("x") as handle:
             json.dump(result, handle, indent=2)
             handle.write("\n")
+        if args.html:
+            args.html.parent.mkdir(parents=True, exist_ok=True)
+            with args.html.open("x", encoding="utf-8") as handle:
+                handle.write(html)
         print(f"Added function evidence for {len(result['pairs'])} retrieved pairs; categories unchanged.")
     except (ValueError, OSError, KeyError, SyntaxError) as exc:
         parser.exit(2, f"Error: {exc}\n")
