@@ -69,6 +69,19 @@ Baseline manifests identify allowed templates. Their token fingerprints are
 excluded by task and language; set a baseline's task to `*` only when it is
 permitted across every task. Existing report files require `--force` to replace.
 
+Compare configuration behavior on exactly the same loaded sources:
+
+```bash
+workhorse compare-configs data/export/manifest.json --output reports/comparison.json
+```
+
+The result shows strict flags, broad leads and pair category changes across
+relationship normalization, corpus-filter removal and legacy normalization.
+It records input hashes and leaves accuracy metrics unknown without independent
+labels. Fewer flags alone do not demonstrate fewer false positives. See
+[configuration comparisons](docs/configuration-comparison.md) for interpretation
+and limits when working with large exports.
+
 ## Record a review and export evidence
 
 ```bash
