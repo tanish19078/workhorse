@@ -13,6 +13,7 @@ from .packets import export_packet
 from .coverage import coverage
 from .reviews import save_json
 from .evaluation import evaluate
+from .experiments import compare_configs
 import json
 
 
@@ -34,6 +35,12 @@ def main(argv=None):
     benchmark.add_argument("benchmark", type=Path)
     benchmark.add_argument("--threshold", type=float, default=0.5)
     benchmark.add_argument("--output", type=Path)
+    experiment = commands.add_parser("compare-configs", help="Compare unlabeled configuration behavior on identical inputs")
+    experiment.add_argument("manifest", type=Path)
+    experiment.add_argument("--baseline", type=Path)
+    experiment.add_argument("--threshold", type=float, default=0.5)
+    experiment.add_argument("--max-candidates", type=int, default=100_000)
+    experiment.add_argument("--output", type=Path)
     review = commands.add_parser("review", help="Generate JSON and HTML comparison reports")
     review.add_argument("manifest", type=Path)
     review.add_argument("--output", type=Path, default=Path("reports"))
@@ -72,6 +79,17 @@ def main(argv=None):
     packet.add_argument("--output", type=Path, required=True)
     args = parser.parse_args(argv)
     try:
+        if args.command == "compare-configs":
+            if args.output and args.output.exists():
+                raise ValueError("Output already exists")
+            result = compare_configs(args.manifest, Options(threshold=args.threshold,
+                                     max_candidates=args.max_candidates), args.baseline)
+            if args.output:
+                save_json(args.output, result, exclusive=True)
+                print(f"Configuration comparison saved to {args.output}")
+            else:
+                print(json.dumps(result, indent=2))
+            return 0
         if args.command == "evaluate":
             result = evaluate(args.benchmark, Options(threshold=args.threshold))
             if args.output:
