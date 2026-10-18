@@ -24,6 +24,7 @@ jobs:
       - run: python -m compileall -q src
       - run: workhorse validate examples/demo/manifest.json
       - run: workhorse review examples/demo/manifest.json --output reports/demo
+      - run: workhorse compare-configs examples/demo/manifest.json --output reports/demo/configuration-comparison.json
       - run: workhorse evaluate examples/benchmark/cases.json --output reports/demo/evaluation.json
       - run: workhorse-calibrate examples/benchmark/cases.json --thresholds 0.35 0.5 0.65 0.8 --output reports/demo/calibration.json
       - run: workhorse-functions examples/demo/manifest.json reports/demo/report.json --output reports/demo/functions.json --html reports/demo/functions.html
